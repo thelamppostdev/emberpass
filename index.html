@@ -1,0 +1,3104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Emberpass</title>
+<style>
+:root { color-scheme: dark; --gold:#f3c781; --muted:#a9a3b6; --ink:#100f19; --line:#3a3045; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100svh; display:grid; place-items:center; background:#11101b; color:#f5e9dc; font:16px system-ui,sans-serif; }
+main { width:min(1680px,98vw,max(540px,calc((100svh - 4.65rem) * 1.92))); padding:.45rem 0; }
+header,.controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.65rem 1rem; }
+header { margin-bottom:.45rem; }
+.brand { color:var(--gold); font:700 1.12rem Georgia,serif; letter-spacing:.23em; }
+button { border:1px solid #77614d; color:#f6d7a5; background:#2e232a; font:700 .95rem system-ui,sans-serif; padding:.57rem .8rem; cursor:pointer; }
+button:hover,button:focus-visible { border-color:var(--gold); background:#503629; }
+#sound { padding:.3rem .7rem; background:transparent; }
+.frame { position:relative; border:1px solid #6b5263; box-shadow:0 0 0 4px #211a2e,0 24px 70px #07060ba0; overflow:hidden; background:#242039; }
+canvas { width:100%; display:block; image-rendering:pixelated; aspect-ratio:576/300; }
+canvas.playing { cursor:crosshair; }
+.frame { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.frame:has(canvas.playing) { touch-action:none; }
+.touch-ui, .touch-help { display:none; }
+@media (any-pointer:coarse) {
+  body { min-height:100dvh; }
+  main { width:min(100%,max(0px,calc((100dvh - 3.6rem) * 1.92))); padding:0; }
+  header, .controls { display:none; }
+  canvas.playing ~ .touch-ui { display:block; }
+  .touch-ui { position:absolute; inset:0; pointer-events:none; }
+  .touch-ui button, #moveStick {
+    position:absolute; pointer-events:auto; border:1px solid #a098a7; color:#fff1dd;
+    background:#171221bd; -webkit-tap-highlight-color:transparent; touch-action:none;
+  }
+  #moveStick {
+    bottom:max(.45rem,env(safe-area-inset-bottom));
+    width:clamp(58px,19dvh,88px); aspect-ratio:1; border-radius:50%; display:grid; place-items:center;
+  }
+  #moveStick { left:max(.5rem,env(safe-area-inset-left)); }
+  #moveKnob { width:44%; aspect-ratio:1; border-radius:50%; background:#e8bf83; opacity:.85; pointer-events:none; }
+  #touchJump, #touchGuard { right:max(.5rem,env(safe-area-inset-right)); min-width:54px; min-height:44px; border-radius:12px; }
+  #touchJump { bottom:max(.45rem,env(safe-area-inset-bottom)); }
+  #touchGuard { bottom:max(3.45rem,calc(env(safe-area-inset-bottom) + 3.2rem)); }
+  #touchGuard[aria-pressed="true"] { border-color:#82e9ce; background:#225a55; }
+  #touchPause { top:.35rem; left:50%; translate:-50%; min-width:44px; min-height:32px; padding:.2rem; border-radius:8px; }
+  .hud { inset:.45rem .55rem auto; }
+  .hud > div:nth-child(2) { padding-top:2.1rem; }
+  .touch-help { display:block; color:var(--muted); font-size:.76rem; text-align:center; margin:.45rem .4rem; }
+  .rotate-hint { display:none; }
+  .overlay { padding:.45rem; }
+  .overlay h1 { font-size:clamp(1.55rem,11dvh,4rem); }
+  .overlay p { margin:.45rem 0 .6rem; }
+  .choices { gap:.3rem; }
+  .choices button { font-size:.8rem; padding:.35rem .5rem; min-height:44px; }
+}
+@media (any-pointer:coarse) and (orientation:portrait) {
+  .rotate-hint { display:block; color:var(--gold); }
+}
+.overlay { position:absolute; inset:0; display:grid; align-content:center; justify-items:center; padding:1rem; text-align:center; background:linear-gradient(90deg,#100c20b8,#100c20e8 48%,#100c2075); }
+.overlay[hidden],.hud[hidden] { display:none; }
+.overlay h1 { font:700 clamp(2rem,8vw,7rem)/.93 Georgia,serif; text-transform:uppercase; letter-spacing:.065em; color:var(--gold); text-shadow:0 5px #4b2734,0 8px #160f1a; margin:0; }
+.overlay p { margin:.9rem 0 1.15rem; font-size:clamp(.9rem,2vw,1.15rem); max-width:37ch; color:#f6e4d6; }
+.choices { flex-wrap:wrap; display:flex; justify-content:center; gap:.6rem; }
+.choices button { max-width:19em; }
+.overlay.adventure-menu { align-content:start; place-items:stretch; overflow:auto; padding:clamp(.6rem,3vw,1.5rem); }
+.overlay.adventure-menu h1 { font-size:clamp(1.45rem,5vw,3rem); }
+.overlay.adventure-menu p { max-width:none; margin:.4rem 0 .75rem; }
+#inventory { width:min(100%,34rem); margin:0 auto .7rem; display:grid; gap:.3rem; }
+#inventory[hidden] { display:none; }
+.inventory-heading { font:700 .7rem system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase; color:#eec786; text-align:left; margin:.38rem 0 .08rem; }
+.inventory-row { display:flex; align-items:center; gap:.65rem; justify-content:space-between; text-align:left; background:#211925e8; border:1px solid #574359; padding:.4rem .55rem; }
+.inventory-row small { display:block; color:#d1bdc3; }
+.inventory-row button { flex-shrink:0; padding:.35rem .6rem; }
+.inventory-row button:disabled { opacity:.55; cursor:default; }
+#inventoryMessage { min-height:1.25em; color:#ffe2a5; }
+#shieldBar { height:100%; background:#70dbc8; }
+.hud { position:absolute; inset:.65rem .8rem auto; display:grid; grid-template-columns:1fr auto 1fr; gap:.2rem .65rem; pointer-events:none; color:#fff1dd; font-size:clamp(.65rem,1.6vw,.9rem); font-weight:700; text-shadow:1px 2px #130e1a; }
+.hud > div:nth-child(3) { text-align:right; }
+.health { margin-top:.25rem; width:min(160px,100%); height:8px; background:#2b1827; border:1px solid #c39283; }
+#bar { height:100%; background:#e4766d; }
+#notice { grid-column:1/-1; text-align:center; color:#ffe2a5; }
+.controls { justify-content:center; margin-top:.55rem; color:var(--muted); font-size:.85rem; }
+kbd { color:#fae1b9; border:1px solid var(--line); background:#231d2d; padding:.12rem .28rem; border-radius:3px; }
+@media(max-width:580px) { .overlay h1 { font-size:clamp(1.8rem,8vw,3rem); } .overlay p { margin:.55rem 0; } }
+</style>
+</head>
+<body>
+<main>
+<header><div class="brand">EMBERPASS</div><button id="sound" type="button" aria-pressed="false">Sound off</button></header>
+<div class="frame">
+<canvas id="game" width="576" height="300" aria-label="Emberpass side-scrolling game"></canvas>
+<div class="hud" id="hud" hidden>
+<div><span id="life"></span><div class="health"><div id="bar"></div></div><span id="shieldText">Shield</span><div class="health"><div id="shieldBar"></div></div><span id="armorText" hidden></span><div id="warmthText" hidden></div></div>
+<div id="wave"></div><div id="gear"></div><div id="notice" aria-live="polite"></div>
+</div>
+<div class="touch-ui" aria-label="Touch controls">
+<div id="moveStick" aria-label="Movement thumbstick"><span id="moveKnob"></span></div>
+<button type="button" id="touchJump">Jump</button>
+<button type="button" id="touchGuard" aria-pressed="false">Shield</button>
+<button type="button" id="touchPause" aria-label="Pause">Ⅱ</button>
+</div>
+<section class="overlay" id="overlay">
+<h1 id="title">Emberpass</h1><p id="subtitle">Take your blaster east. The orc warband has energy shields and rifles of its own.</p>
+<div id="inventory" hidden></div>
+<div class="choices"><button id="primary" type="button">Enter the pass</button><button id="secondary" type="button" hidden></button><button id="third" type="button" hidden></button></div>
+</section>
+</div>
+<div class="controls" aria-label="Game controls">
+<span><kbd>A</kbd> <kbd>D</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>S</kbd> or <kbd>↓</kbd> Crouch</span><span>Mouse aim</span>
+<span><kbd>Left click</kbd> or <kbd>K</kbd> Fire · Hold to charge</span>
+<span>Shield · <kbd>Right click</kbd> tap to toggle or hold · <kbd>F</kbd> hold</span><span><kbd>E</kbd> Interact</span><span><kbd>I</kbd> Pack</span><span><kbd>Z</kbd> <kbd>X</kbd> Swap weapon</span><span><kbd>Q</kbd> Send Bramble</span><span><kbd>H</kbd> Dressing</span><span><kbd>T</kbd> Heat pack</span><span><kbd>Esc</kbd> Pause</span>
+</div>
+<p class="touch-help"><span class="rotate-hint">Rotate your phone for more room.</span> Stick to move · Pull down to crouch · Tap the field to fire · Hold to charge, release to fire</p>
+<output id="inputTrace" hidden></output>
+</main>
+<script>
+'use strict';
+
+
+const byId = id => document.getElementById(id);
+const canvas = byId('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const GROUND = 251;
+const GRAVITY = 535;
+const WEAPON_HEIGHT = 14;
+const ARENA_OFFSET = 272;
+const ARENA_BACK = 218;
+const ARENA_AHEAD = 229;
+const ENTRY_MARGIN = 26;
+const SHIELD_BREAK_CHARGE = .62;
+const GUARD_RADIUS = 31;
+const GUARD_HALF_ANGLE = Math.PI*.335;
+const GUARD_CAPACITY = 3;
+const MELEE_SWING = .23;
+const MELEE_CONTACT_LEFT = .13;
+const JUMP_BUFFER = .13;
+const gates = [450, 1320, 2220, 3180, 4200];
+const dogHome = 168;
+const traders = [
+  {x:765, name:'Mira', extraWeapons:['glaive','moonring'], place:'Lantern Hollow', title:'Mira’s Forge at Lantern Hollow', awning:'#aa765b', treatment:false, armorStock:['hide']},
+  {x:1620, name:'Rowan', extraWeapons:['cinder','mine','graveline'], supply:'bandage', place:'Bridge Market', title:'Rowan’s Bridge Market', awning:'#56837c', treatment:true, armorStock:['hide','brigandine']},
+  {x:3460, name:'Iona', extraWeapons:['storm','beam','wardbell'], supply:'heat', place:'Gatebound Post', title:'Iona’s Gatebound Post', awning:'#91729b', treatment:true, armorStock:['brigandine']}
+];
+const cacheX = 863;
+const healerHome = 2380;
+const tunnelX = 2685;
+const coldRoad = 2830;
+const courierSatchel = {x:2510, y:30};
+const supplies = {
+  bandage:{name:'Field dressing', description:'Recover up to 3 health in the field.', price:6, key:'H'},
+  heat:{name:'Heat pack', description:'Restore up to 65 warmth in the field.', price:4, key:'T'}
+};
+const patrols = [
+  {x:320, name:'Road scouts', enemies:['scrapling','orc']},
+  {x:1030, name:'Ruin raiders', enemies:['reaver','marauder','reaver']},
+  {x:1800, name:'Bridge patrol', enemies:['guard','orc','marksman']},
+  {x:2650, name:'Cinder warband', tunnel:true, enemies:['brute','marauder','guard','reaver']},
+  {x:3630, name:'Gate vanguard', enemies:['brute','guard','marksman','skirmisher','guard']}
+];
+const salvage = {
+  scrap:{name:'Orc scrap', price:2},
+  parts:{name:'Shield parts', price:4},
+  buckles:{name:'Raider buckles', price:3}
+};
+const weapons = {
+  ranger:{name:'Ranger rifle', description:'Balanced starter rifle.', price:0, length:35, damage:0, charge:650, reload:1, speed:426},
+  needle:{name:'Needle carbine', description:'Fast blue pulses. Charges in 0.45s and fires more often.', price:14, length:26, damage:0, charge:450, reload:.65, speed:610},
+  forge:{name:'Forge rifle', description:'Heavy plasma. +2 main bolt damage and +2 shield damage. Slow to cycle.', price:22, length:43, damage:2, charge:820, reload:1.55, speed:345},
+  cinder:{name:'Cinder projector', description:'Three close-range fireballs per volley. Charge for a tighter, longer blast.', price:26, length:25, damage:0, charge:560, reload:1.30, speed:294, vendor:true},
+  storm:{name:'Storm coil', description:'Violet bolts arc once to a nearby enemy. Charge for a stronger arc.', price:34, length:33, damage:0, charge:750, reload:1.48, speed:510, vendor:true},
+  glaive:{name:'Ember glaive', description:'Sweep the area you aim at. Hold and release for a heavier, longer cut.', price:12, length:39, damage:0, charge:520, reload:1, type:'melee', vendor:true},
+  mine:{name:'Minecaster', description:'Place up to three proximity mines. Charge to plant farther away with a bigger blast.', price:20, length:29, damage:0, charge:580, reload:1, type:'mine', vendor:true},
+  beam:{name:'Sunbeam cutter', description:'Hold fire to burn the first target in the beam. Release to cool the weapon.', price:28, length:32, damage:0, charge:700, reload:1, type:'beam', vendor:true},
+  moonring:{name:'Moonring', description:'Throw a blade that hits on both passes. Move to steer its return path.', price:14, length:17, damage:0, charge:500, reload:1, type:'ring', vendor:true},
+  graveline:{name:'Graveline', description:'Latch onto the first enemy in aim and pull it toward you. Charge for longer reach.', price:19, length:27, damage:0, charge:620, reload:1, type:'tether', vendor:true},
+  wardbell:{name:'Wardbell', description:'Send out a pulse that damages nearby foes and clears incoming bolts.', price:23, length:18, damage:0, charge:650, reload:1, type:'ward', vendor:true}
+};
+const weaponMods = {
+  capacitor:{name:'Quick capacitor', description:'Charge 28% faster.', cost:{coins:8,scrap:3}},
+  fork:{name:'Forked emitter', description:'A charged shot sends out two extra bolts at wide angles.', cost:{coins:10,parts:2}},
+  pierce:{name:'Piercing coil', description:'Charged blue pulses can hit one extra enemy. Intact shields stop them.', cost:{coins:12,parts:2}},
+  splash:{name:'Plasma chamber', description:'Charged plasma bursts on enemy impact for 2 damage to nearby foes.', cost:{coins:14,parts:3,buckles:1}},
+  furnace:{name:'Furnace throat', description:'Charged fireballs burn 50% farther and hit harder.', cost:{coins:11,scrap:4,buckles:1}},
+  relay:{name:'Arc relay', description:'Charged bolts jump to two enemies after the initial hit.', cost:{coins:14,parts:3}},
+  hook:{name:'Hooked edge', description:'Charged sweeps reach farther and chip 2 extra shield.', cost:{coins:8,scrap:4}},
+  tremor:{name:'Concussion charges', description:'Charged mines blast a wider area and interrupt enemies.', cost:{coins:11,parts:2}},
+  vent:{name:'Open heat sink', description:'The cutter builds 30% less heat while firing.', cost:{coins:10,parts:2}},
+  silver:{name:'Silver edge', description:'On charged throws, the return cut deals 2 extra damage and interrupts attacks.', cost:{coins:9,scrap:4}},
+  winch:{name:'Iron winch', description:'Charged tethers strip 3 extra shield and pull harder.', cost:{coins:11,parts:2}},
+  echo:{name:'Echo chamber', description:'A charged pulse sends a smaller second wave that also clears bolts.', cost:{coins:12,parts:2,buckles:1}}
+};
+const signatureMods = {ranger:'fork',needle:'pierce',forge:'splash',cinder:'furnace',storm:'relay',glaive:'hook',mine:'tremor',beam:'vent',moonring:'silver',graveline:'winch',wardbell:'echo'};
+const armors = {
+  clothes:{name:'Travel clothes', description:'No armor. Full movement speed.', price:0, points:0, speed:1, cold:11},
+  hide:{name:'Hide vest', description:'Absorbs 2 damage. Insulates against cold.', price:10, points:2, speed:1, cold:7},
+  brigandine:{name:'Iron brigandine', description:'Absorbs 4 damage. Move 10% slower.', price:24, points:4, speed:.9, cold:9}
+};
+const places = ['The Pine Road', 'Broken Watch', 'Cinder Bridge', 'The Long Ruin', 'The Ember Gate'];
+const platforms = [
+  [[-178,114,34],[-79,118,68],[67,130,42]],
+  [[-202,116,42],[-111,118,77],[51,130,36]],
+  [[-163,101,32],[-54,109,57],[42,135,79],[152,66,34]],
+  [[-200,135,46],[-83,83,86],[7,96,58],[119,101,32]],
+  [[-192,130,35],[-80,160,71],[88,116,42]]
+].flatMap((ledges,i) => ledges.map(([offset,width,height]) => ({
+  left:gates[i]+offset,right:gates[i]+offset+width,height
+}))).concat({left:2467,right:2545,height:courierSatchel.y});
+const packs = [
+  ['scrapling','orc','scrapling','guard','scrapling','orc','scrapling','skirmisher'],
+  ['scrapling','orc','skirmisher','scrapling','brute','scrapling','orc','scrapling','guard','marksman'],
+  ['skirmisher','scrapling','guard','marksman','scrapling','brute','skirmisher','guard','orc','scrapling','brute','scrapling'],
+  ['guard','scrapling','marksman','orc','scrapling','brute','scrapling','skirmisher','marksman','scrapling','guard','skirmisher','brute','orc'],
+  ['guard','scrapling','marksman','orc','scrapling','brute','scrapling','skirmisher',
+    'marksman','chief','scrapling','guard','brute','scrapling','orc','marksman']
+];
+const enemyTypes = {
+  orc:        { hp:2, speed:57, leap:253, range:161, wind:.46, reload:1.33, boltSpeed:195, damage:1, size:0.66, skin:'#91a44e', coat:'#794956' },
+  scrapling:  { hp:1, speed:113, leap:314, range:19, wind:.22, reload:.72, damage:1, size:0.49, skin:'#c1b962', coat:'#a05848', melee:true },
+  skirmisher: { hp:2, speed:87, leap:307, range:137, wind:.33, reload:1.08, boltSpeed:221, damage:1, size:0.59, skin:'#a9b36c', coat:'#497b8a' },
+  guard:      { hp:5, speed:48, leap:242, range:184, wind:.53, reload:1.50, boltSpeed:206, damage:1, size:0.72, skin:'#7c9861', coat:'#61546d', shield:4 },
+  brute:      { hp:6, speed:66, leap:275, range:34, wind:.56, reload:1.03, damage:2, size:0.79, skin:'#a8a05c', coat:'#816052', melee:true },
+  marksman:   { hp:2, speed:49, leap:269, range:237, wind:.83, reload:1.55, boltSpeed:335, damage:1, size:0.68, skin:'#a3a96e', coat:'#72557c' },
+  reaver:     { human:true, hp:3, speed:89, leap:276, range:25, wind:.34, reload:.85, damage:1, size:0.66, melee:true, skin:'#cd9e81', coat:'#9d5862' },
+  marauder:   { human:true, hp:3, speed:66, leap:267, range:174, wind:.37, reload:1.22, boltSpeed:258, damage:1, size:0.69, skin:'#b9866d', coat:'#676782' },
+  chief:      { hp:24,speed:68, leap:289, range:187, wind:.48, reload:.92, boltSpeed:250, damage:2, size:0.87, skin:'#bac478', coat:'#9d465a', shield:7 }
+};
+
+const held = new Set();
+const clamp = (n,min,max) => Math.min(max, Math.max(min,n));
+const hash = n => {
+  const f = Math.sin(n*127.1+311.7)*43758.5453;
+  return f-Math.floor(f);
+};
+const pixel = (x,y,w,h,color) => {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x),Math.round(y),w,h);
+};
+
+let adventure;
+let arcs, mines, glaiveSwing, beamTrace;
+let moonrings, tether, wards;
+let mode = 'title';
+let hero, mobs, drops, bolts, sparks, wave, phase, camera, clock, kills, spawn, nextSpawn, shake;
+let notice = '';
+let noticeTime = 0;
+let pickupHint = '';
+let pointer = null;
+let charge = null;
+let queuedShot = null;
+let jumpBuffer = 0;
+let mouseGuardButton = null;
+let menuOnlyGuard = false;
+let guardLatched = false;
+let guardPressedAt = 0;
+const GUARD_TAP_MS = 240;
+let guardReleasedAt = -Infinity;
+let sound = false;
+let audio;
+
+function beep(from, to, duration, volume = .028) {
+  if (!sound || !audio || audio.state !== 'running') return;
+  const oscillator = audio.createOscillator();
+  const gain = audio.createGain();
+  const now = audio.currentTime;
+  oscillator.type = 'triangle';
+  oscillator.frequency.setValueAtTime(from, now);
+  oscillator.frequency.exponentialRampToValueAtTime(to, now + duration);
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(.001, now + duration);
+  oscillator.connect(gain);
+  gain.connect(audio.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration);
+}
+
+byId('sound').onclick = () => {
+  if (!sound) {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return;
+    audio ||= new Audio();
+    audio.resume().catch(() => {});
+  }
+  sound = !sound;
+  byId('sound').textContent = sound ? 'Sound on' : 'Sound off';
+  byId('sound').setAttribute('aria-pressed', sound);
+  beep(350,650,.12);
+};
+
+
+const overlay = byId('overlay');
+const primary = byId('primary');
+const secondary = byId('secondary');
+const inventory = byId('inventory');
+let currentTrader = null;
+const moveStick = byId('moveStick');
+const moveKnob = byId('moveKnob');
+const touchLayout = window.matchMedia('(any-pointer:coarse)');
+const touchGuard = byId('touchGuard');
+let stickPointer = null;
+let aimPointer = null;
+let stickMove = 0;
+let stickDuck = false;
+
+function resetStick() {
+  stickPointer = null;
+  stickMove = 0;
+  stickDuck = false;
+  moveKnob.style.transform = '';
+}
+
+function moveThumb(e) {
+  const bounds = moveStick.getBoundingClientRect();
+  const radius = bounds.width*.3;
+  const dx = (e.clientX-bounds.left-bounds.width/2)/radius;
+  const dy = (e.clientY-bounds.top-bounds.height/2)/radius;
+  const limit = Math.max(1,Math.hypot(dx,dy));
+  moveKnob.style.transform = 'translate('+dx/limit*radius+'px,'+dy/limit*radius+'px)';
+  stickMove = Math.abs(dx) > .32 ? Math.sign(dx) : 0;
+  stickDuck = dy > .55;
+}
+
+moveStick.addEventListener('pointerdown', e => {
+  if (mode !== 'playing' || stickPointer !== null || e.button !== 0) return;
+  e.preventDefault();
+  stickPointer = e.pointerId;
+  moveStick.setPointerCapture(e.pointerId);
+  moveThumb(e);
+});
+moveStick.addEventListener('pointermove', e => {
+  if (stickPointer === e.pointerId) moveThumb(e);
+});
+for (const type of ['pointerup','pointercancel','lostpointercapture']) {
+  moveStick.addEventListener(type, e => {
+    if (stickPointer === e.pointerId) resetStick();
+  });
+}
+byId('touchJump').addEventListener('pointerdown', e => {
+  if (mode !== 'playing' || e.button !== 0) return;
+  e.preventDefault();
+  jumpBuffer = JUMP_BUFFER;
+});
+function toggleTouchGuard() {
+  if (mode !== 'playing') return;
+  guardLatched = !guardLatched;
+  if (guardActive()) cancelFire();
+  updateHud();
+}
+touchGuard.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  toggleTouchGuard();
+});
+touchGuard.onclick = e => { if (e.detail === 0) toggleTouchGuard(); };
+byId('touchPause').onclick = () => {
+  if (mode === 'playing') panel('paused','Paused','The pass can wait.','Resume');
+};
+
+function clearInput() {
+  held.clear();
+  resetStick();
+  aimPointer = null;
+  if (hero) hero.burstLeft = 0;
+  glaiveSwing = beamTrace = tether = null;
+  pointer = null;
+  charge = null;
+  queuedShot = null;
+  jumpBuffer = 0;
+  mouseGuardButton = null;
+  menuOnlyGuard = false;
+  guardReleasedAt = -Infinity;
+  guardLatched = false;
+}
+
+function panel(state, heading, copy, first, second) {
+  mode = state;
+  clearInput();
+  canvas.classList.remove('playing');
+  overlay.hidden = false;
+  const inventoryOpen = state === 'pack' || state === 'trade';
+  overlay.classList.toggle('adventure-menu',inventoryOpen);
+  inventory.hidden = !inventoryOpen;
+  byId('title').textContent = heading;
+  byId('subtitle').textContent = copy;
+  primary.textContent = first;
+  byId('third').hidden = state !== 'upgrade';
+  secondary.hidden = !second;
+  secondary.textContent = second || '';
+}
+
+function play() {
+  mode = 'playing';
+  currentTrader = null;
+  clearInput();
+  canvas.classList.add('playing');
+  if (touchLayout.matches) camera = hero.x-W/2;
+  overlay.hidden = true;
+  inventory.hidden = true;
+  byId('hud').hidden = false;
+  document.activeElement?.blur();
+  updateHud();
+}
+
+function reset() {
+  hero = {
+    x:95, y:0, vy:0, grounded:true, crouching:false, facing:1, aim:0, hp:10, max:10, moving:0,
+    weapon:'ranger', beamHeat:0, beamLocked:false, armor:'clothes', warmth:100, coldTime:0, coldWarned:false, reload:0, muzzle:0, lastPower:0, inv:0,
+    guardEnergy:GUARD_CAPACITY, guardMax:GUARD_CAPACITY, guardFlash:0, guardCooling:false, burst:1, spread:0, burstLeft:0, burstPower:0
+  };
+  adventure = {
+    coins:0, pack:{scrap:0,parts:0,buckles:0}, owned:new Set(['ranger']), rifleUpgrades:new Map(), armor:new Map([['clothes',0]]),
+    patrols:new Set(), cacheOpened:false, delivery:'unheard', supplies:{bandage:0,heat:0}, loot:[], dog:{joined:false,x:dogHome,y:0,facing:1,moving:false,cooldown:0,target:null},
+    healer:{joined:false,x:healerHome,y:0,facing:1,moving:false}
+  };
+  mobs = [];
+  drops = [];
+  bolts = [];
+  arcs = [];
+  mines = [];
+  moonrings = [];
+  wards = [];
+  glaiveSwing = beamTrace = tether = null;
+  sparks = [];
+  wave = 0;
+  phase = 'travel';
+  camera = clock = kills = spawn = nextSpawn = shake = 0;
+  notice = pickupHint = '';
+  noticeTime = 0;
+}
+
+function say(message,duration=2.5) {
+  notice = message;
+  noticeTime = duration;
+}
+
+function start() {
+  reset();
+  say('Follow the Pine Road east. Press E to interact and I to open your pack.',4);
+  play();
+  beep(270,540,.16);
+}
+
+function upgrade(kind) {
+  if (mode !== 'upgrade') return;
+  if (kind === 'burst') hero.burst++;
+  else if (kind === 'spread') hero.spread++;
+  else if (kind === 'shield') hero.guardMax += 2;
+  else return;
+  hero.hp = Math.min(hero.max,hero.hp+(adventure.healer.joined ? 5 : 3));
+  hero.guardEnergy = hero.guardMax;
+  adventure.armor.set(hero.armor,armors[hero.armor].points);
+  hero.warmth = 100;
+  hero.coldTime = 0;
+  hero.guardCooling = false;
+  wave++;
+  phase = 'travel';
+  bolts = [];
+  say('Press on to the next watchfire.');
+  play();
+  beep(280,720,.24);
+}
+
+primary.onclick = () => {
+  if (['paused','pack','trade'].includes(mode)) play();
+  else if (mode === 'sera') recruitSera();
+  else if (mode === 'upgrade') upgrade('burst');
+  else start();
+};
+secondary.onclick = () => mode === 'sera' ? play() : upgrade('spread');
+byId('third').onclick = () => upgrade('shield');
+
+function nearby(x) {
+  return Math.abs(hero.x-x) < 36 && hero.y < 24;
+}
+
+function traderNearby() {
+  return traders.find(trader => nearby(trader.x));
+}
+
+function recruitSera() {
+  if (mode !== 'sera' || adventure.healer.joined) return;
+  adventure.healer.joined = true;
+  say('Sera joins you. She tends your wounds at watchfires.',4);
+  play();
+}
+
+function satchelNearby() {
+  return ['unheard','accepted'].includes(adventure.delivery)
+    && Math.abs(hero.x-courierSatchel.x) < 26
+    && Math.abs(hero.y-courierSatchel.y) < 12;
+}
+
+function interact() {
+  const trader = traderNearby();
+  if (!adventure.dog.joined && nearby(dogHome)) {
+    adventure.dog.joined = true;
+    say('Bramble joins you. He picks up salvage along the road.',4);
+  } else if (!adventure.healer.joined && nearby(healerHome)) {
+    panel('sera','Sera, field medic','“The Cinder patrol scattered our courier. I can dress your wounds at watchfires if you’ll take me as far as the gate.”',
+      'Travel together','Maybe later');
+  } else if (satchelNearby()) {
+    adventure.delivery = 'found';
+    say('Courier satchel recovered · Bring it to Iona at Gatebound Post',4);
+  } else if (trader) {
+    openPack(trader);
+  } else if (!adventure.cacheOpened && nearby(cacheX)) {
+    adventure.cacheOpened = true;
+    const recovered = Math.min(3,hero.max-hero.hp);
+    hero.hp += recovered;
+    adventure.coins += 4;
+    say('Supply chest · 4 coin'+(recovered ? ' and '+recovered+' health' : ''),3);
+    updateHud();
+  }
+}
+
+function addInventoryRow(name,detail,action,handler,disabled=false) {
+  const row = document.createElement('div');
+  row.className = 'inventory-row';
+  const label = document.createElement('div');
+  const title = document.createElement('strong');
+  const description = document.createElement('small');
+  title.textContent = name;
+  description.textContent = detail;
+  label.append(title,description);
+  row.append(label);
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = action;
+    button.disabled = disabled;
+    button.onclick = handler;
+    row.append(button);
+  }
+  inventory.append(row);
+}
+
+function addInventoryHeading(text) {
+  const heading = document.createElement('h2');
+  heading.className = 'inventory-heading';
+  heading.textContent = text;
+  inventory.append(heading);
+}
+
+function addGearRow(kind,gear,owned,slot,purchase) {
+  const equipped = hero[slot] === kind;
+  addInventoryRow(gear.name,gear.description,equipped ? 'Equipped' : owned ? 'Equip' : 'Buy · '+gear.price,() => {
+    if (mode !== 'pack' && mode !== 'trade') return;
+    if (!owned) {
+      if (mode !== 'trade' || adventure.coins < gear.price) return;
+      adventure.coins -= gear.price;
+      purchase();
+    }
+    hero[slot] = kind;
+    updatePack(gear.name+' equipped.');
+  },equipped || (!owned && adventure.coins < gear.price));
+}
+
+function supplyNeeded(kind) {
+  return kind === 'bandage' ? hero.hp < hero.max : hero.warmth < 100;
+}
+
+function useSupply(kind,inPack=false) {
+  if (!adventure.supplies[kind] || !supplyNeeded(kind)) return;
+  adventure.supplies[kind]--;
+  const bandage = kind === 'bandage';
+  const recovered = Math.ceil(bandage ? Math.min(3,hero.max-hero.hp) : Math.min(65,100-hero.warmth));
+  if (bandage) hero.hp = Math.min(hero.max,hero.hp+3);
+  else {
+    hero.warmth = Math.min(100,hero.warmth+65);
+    hero.coldTime = 0;
+  }
+  const message = 'Recovered '+recovered+(bandage ? ' health.' : '% warmth.');
+  if (inPack) updatePack(message);
+  else say(message,2.2);
+  updateHud();
+}
+
+function addSupplyRows(trading) {
+  addInventoryHeading('Field supplies');
+  for (const [kind,item] of Object.entries(supplies)) {
+    const count = adventure.supplies[kind];
+    const onSale = trading && currentTrader.supply === kind;
+    const detail = item.description+' '+item.key+' to use.';
+    if (onSale) {
+      addInventoryRow(item.name+' ×'+count,detail,'Buy · '+item.price,() => {
+        if (mode !== 'trade' || currentTrader.supply !== kind || adventure.coins < item.price) return;
+        adventure.coins -= item.price;
+        adventure.supplies[kind]++;
+        updatePack(item.name+' packed.');
+      },adventure.coins < item.price);
+    } else if (!trading) {
+      addInventoryRow(item.name+' ×'+count,detail,'Use',() => {
+        if (mode === 'pack') useSupply(kind,true);
+      },!count || !supplyNeeded(kind));
+    }
+  }
+}
+
+function addDeliveryRow() {
+  if (mode !== 'trade') return;
+  if (currentTrader.name === 'Rowan' && adventure.delivery === 'unheard') {
+    addInventoryRow('The missing courier','“Look for our satchel on the shelf past Cinder Bridge. Iona can pay you at Gatebound Post.”','Take the job',() => {
+      if (mode !== 'trade' || adventure.delivery !== 'unheard') return;
+      adventure.delivery = 'accepted';
+      updatePack('Job noted in your field pack.');
+    });
+  }
+  if (currentTrader.name === 'Iona' && adventure.delivery === 'found') {
+    addInventoryRow('Courier delivery','“You found it. The gate crew was counting on these supplies.”','Hand over satchel',() => {
+      if (mode !== 'trade' || adventure.delivery !== 'found') return;
+      adventure.delivery = 'delivered';
+      adventure.coins += 10;
+      adventure.supplies.heat++;
+      updatePack('Delivery paid · 10 coin and one heat pack.');
+    });
+  }
+}
+
+function rifleUpgrades(kind) {
+  if (!adventure.rifleUpgrades.has(kind)) {
+    adventure.rifleUpgrades.set(kind,{level:0,mod:null,owned:new Set()});
+  }
+  return adventure.rifleUpgrades.get(kind);
+}
+
+function canCraft(cost) {
+  return Object.entries(cost).every(([kind,count]) =>
+    (kind === 'coins' ? adventure.coins : adventure.pack[kind]) >= count);
+}
+
+function spendCraftingCost(cost) {
+  for (const [kind,count] of Object.entries(cost)) {
+    if (kind === 'coins') adventure.coins -= count;
+    else adventure.pack[kind] -= count;
+  }
+}
+
+function craftingLabel(cost) {
+  return Object.entries(cost).map(([kind,count]) =>
+    count+' '+(kind === 'coins' ? 'coin' : salvage[kind].name.toLowerCase())).join(' + ');
+}
+
+function addWorkbench(trading) {
+  const kind = hero.weapon;
+  const upgrades = rifleUpgrades(kind);
+  addInventoryHeading(weapons[kind].name+' workbench');
+  const tier = upgrades.level;
+  const weapon = weapons[kind];
+  const chargeSeconds = (weapon.charge*(upgrades.mod === 'capacitor' ? .72 : 1)/1000).toFixed(2);
+  const baseDamage = ({melee:3,mine:3,beam:2,ring:2,tether:2,ward:2}[weapon.type] ?? 1+weapon.damage)+tier;
+  const timing = weapon.type === 'beam' ? 'Hold to fire · ' : chargeSeconds+'s full charge · ';
+  addInventoryRow('Weapon stats',baseDamage+' base damage · '+timing
+    +(upgrades.mod ? weaponMods[upgrades.mod].name+' installed' : 'Empty mod slot'),'');
+  const cost = {coins:6+4*tier,scrap:3+2*tier};
+  const tune = tier < 2 && trading;
+  const details = 'Each level adds 1 base damage and speeds up the weapon.';
+  addInventoryRow('Tuning '+tier+'/2',details+(tune ? ' Next cost · '+craftingLabel(cost)+'.' : ''),
+    tune ? 'Tune to '+(tier+1) : '',() => {
+      if (mode !== 'trade' || hero.weapon !== kind || upgrades.level !== tier || !canCraft(cost)) return;
+      spendCraftingCost(cost);
+      upgrades.level++;
+      updatePack('Weapon tuned to level '+upgrades.level+'.');
+    },!canCraft(cost));
+  for (const id of kind === 'beam' ? ['vent'] : ['capacitor',signatureMods[kind]]) {
+    const item = weaponMods[id];
+    const owned = upgrades.owned.has(id);
+    const installed = upgrades.mod === id;
+    if (!trading && !owned) continue;
+    addInventoryRow(item.name,item.description+(!owned ? ' Cost: '+craftingLabel(item.cost)+'.' : ''),
+      installed ? 'Remove' : owned ? 'Install' : 'Craft',() => {
+        if (hero.weapon !== kind || (mode !== 'trade' && mode !== 'pack')) return;
+        if (!upgrades.owned.has(id)) {
+          if (mode !== 'trade' || !canCraft(item.cost)) return;
+          spendCraftingCost(item.cost);
+          upgrades.owned.add(id);
+        }
+        upgrades.mod = upgrades.mod === id ? null : id;
+        updatePack(upgrades.mod === id ? item.name+' installed.' : item.name+' removed.');
+      },!owned && !canCraft(item.cost));
+  }
+}
+
+function updatePack(message='') {
+  const trading = mode === 'trade';
+  byId('subtitle').textContent = adventure.coins+' coin · '+weapons[hero.weapon].name+' · '+armors[hero.armor].name;
+  inventory.replaceChildren();
+  addDeliveryRow();
+  if (!trading && adventure.delivery !== 'unheard') {
+    const objective = {
+      accepted:'Look on the ledge past Cinder Bridge.',
+      found:'Deliver the recovered satchel to Iona at Gatebound Post.',
+      delivered:'Delivered to Iona.'
+    };
+    addInventoryRow('Courier satchel',objective[adventure.delivery],'');
+  }
+  addInventoryHeading('Salvage');
+  for (const [kind,item] of Object.entries(salvage)) {
+    const count = adventure.pack[kind];
+    addInventoryRow(item.name+' ×'+count,item.price+' coin each',
+      trading && count ? 'Sell stack · '+count*item.price : '',() => {
+        if (mode !== 'trade' || !adventure.pack[kind]) return;
+        adventure.coins += adventure.pack[kind]*item.price;
+        adventure.pack[kind] = 0;
+        updatePack('Sold '+item.name.toLowerCase()+'.');
+      });
+  }
+  addInventoryHeading('Weapons');
+  for (const [kind,weapon] of Object.entries(weapons)) {
+    const owned = adventure.owned.has(kind);
+    if (!owned && (!trading || (weapon.vendor && !currentTrader.extraWeapons.includes(kind)))) continue;
+    addGearRow(kind,weapon,owned,'weapon',() => adventure.owned.add(kind));
+  }
+  addWorkbench(trading);
+  addInventoryHeading('Armor');
+  for (const [kind,armor] of Object.entries(armors)) {
+    const owned = adventure.armor.has(kind);
+    const available = trading && currentTrader.armorStock.includes(kind);
+    if (!owned && !available) continue;
+    const condition = owned && armor.points ? ' '+adventure.armor.get(kind)+'/'+armor.points+' armor.' : '';
+    addGearRow(kind,{...armor,description:armor.description+condition},owned,'armor',
+      () => adventure.armor.set(kind,armor.points));
+  }
+  if (trading && hero.armor !== 'clothes') {
+    const missing = armors[hero.armor].points-adventure.armor.get(hero.armor);
+    if (missing) addInventoryRow('Repair equipped armor','Restore '+missing+' armor','Repair · '+missing*2,() => {
+      if (mode !== 'trade' || adventure.coins < missing*2) return;
+      adventure.coins -= missing*2;
+      adventure.armor.set(hero.armor,armors[hero.armor].points);
+      updatePack('Armor repaired.');
+    },adventure.coins < missing*2);
+  }
+  if (trading && currentTrader.treatment) {
+    const treatmentCost = 5;
+    const missingHealth = hero.max-hero.hp;
+    addInventoryRow('Field treatment','Recover up to 4 health','Heal · '+treatmentCost,() => {
+      if (mode !== 'trade' || !currentTrader.treatment || adventure.coins < treatmentCost || hero.hp >= hero.max) return;
+      const recovered = Math.min(4,hero.max-hero.hp);
+      adventure.coins -= treatmentCost;
+      hero.hp += recovered;
+      updatePack('Recovered '+recovered+' health.');
+    },missingHealth === 0 || adventure.coins < treatmentCost);
+  }
+  if (!trading || currentTrader.supply) addSupplyRows(trading);
+  const status = document.createElement('div');
+  status.id = 'inventoryMessage';
+  status.setAttribute('role','status');
+  status.textContent = message;
+  inventory.append(status);
+}
+
+function openPack(trader=null) {
+  currentTrader = trader;
+  panel(trader ? 'trade' : 'pack',trader ? trader.title : 'Field Pack','','Back to the road');
+  updatePack();
+  overlay.scrollTop = 0;
+}
+
+function encounterPatrols() {
+  for (const [index,patrol] of patrols.entries()) {
+    if (adventure.patrols.has(index) || Math.abs(hero.x-patrol.x) > 120) continue;
+    adventure.patrols.add(index);
+    const side = hero.x < patrol.x ? 1 : -1;
+    if (patrol.tunnel) {
+      patrol.enemies.forEach((type,i) => spawnEnemy(type,1,tunnelX,0,1+i*.58));
+      say('Dust shakes loose from the old tunnel',2.8);
+    } else {
+      patrol.enemies.forEach((type,i) => spawnEnemy(type,side,patrol.x+i*31*side,i*28));
+      say(patrol.name+' approaching from the '+(side > 0 ? 'east' : 'west'),2.6);
+    }
+  }
+}
+
+function sendBramble() {
+  const dog = adventure.dog;
+  if (!dog.joined || dog.cooldown > 0 || dog.target) return;
+  let best = Infinity;
+  const angle = pointer ? aimAt(pointer) : hero.aim;
+  for (const enemy of mobs) {
+    const distance = Math.hypot(enemy.x-dog.x,enemy.y-dog.y);
+    if (enemy.hp <= 0 || enemy.emerge > 0 || distance > 210 || enemy.x < camera || enemy.x > camera+W) continue;
+    const dx = enemy.x-hero.x;
+    const dy = enemyWeaponY(enemy)-weaponY();
+    const score = distance-70*(dx*Math.cos(angle)+dy*Math.sin(angle))/Math.max(1,Math.hypot(dx,dy));
+    if (score >= best) continue;
+    dog.target = enemy;
+    best = score;
+  }
+  if (dog.target) say('Bramble, go!',1.2);
+}
+
+function follow(actor,targetX,targetY,speed,dt) {
+  const distance = targetX-actor.x;
+  const step = Math.abs(distance) > 4 ? clamp(distance,-speed*dt,speed*dt) : 0;
+  actor.x += step;
+  actor.moving = step !== 0;
+  if (step) actor.facing = Math.sign(step);
+  actor.y += (targetY-actor.y)*Math.min(1,dt*6);
+}
+
+function updateWarmth(dt) {
+  if (!hero.coldWarned && hero.x >= coldRoad) {
+    hero.coldWarned = true;
+    say('Cold road · Warm up at watchfires and trading posts',4);
+  }
+  const sheltered = hero.x < coldRoad
+    || gates.some(x => Math.abs(hero.x-x) < 64)
+    || traders.some(trader => Math.abs(hero.x-trader.x) < 59);
+  const rate = sheltered ? 36 : -armors[hero.armor].cold;
+  hero.warmth = clamp(hero.warmth+rate*dt,0,100);
+  if (hero.warmth > 0) {
+    hero.coldTime = 0;
+    return;
+  }
+  hero.coldTime += dt;
+  if (hero.coldTime >= 2.5) {
+    hero.coldTime = 0;
+    hero.hp = Math.max(0,hero.hp-1);
+    say('Freezing · Find a watchfire or trading post',2.2);
+  }
+}
+
+function updateAdventure(dt) {
+  updateWarmth(dt);
+  const dog = adventure.dog;
+  if (dog.joined) {
+    dog.cooldown = Math.max(0,dog.cooldown-dt);
+    if (dog.target?.hp <= 0 || (dog.target && Math.abs(dog.target.x-hero.x) > 300)) dog.target = null;
+    if (dog.target) {
+      const target = dog.target;
+      follow(dog,target.x,target.y,224,dt);
+      if (Math.abs(target.x-dog.x) < 13 && Math.abs(target.y-dog.y) < 16) {
+        hitEnemy(target,{damage:2,power:SHIELD_BREAK_CHARGE,dx:dog.facing});
+        dog.cooldown = 5;
+        dog.target = null;
+        particles(dog.x,GROUND-dog.y-12,'#ecd39e',5);
+      }
+    } else {
+      follow(dog,hero.x-hero.facing*26,hero.y*.85,150,dt);
+    }
+  } else if (nearby(dogHome)) {
+    pickupHint = 'E · Approach the stray dog';
+  }
+  const healer = adventure.healer;
+  if (healer.joined) follow(healer,hero.x-hero.facing*58,hero.y*.85,142,dt);
+  else if (nearby(healerHome)) pickupHint = 'E · Talk to Sera, a field medic';
+  const trader = traderNearby();
+  if (trader) pickupHint = 'E · Trade with '+trader.name;
+  if (!adventure.cacheOpened && nearby(cacheX)) pickupHint = 'E · Open supply chest';
+  if (satchelNearby()) pickupHint = 'E · Pick up courier satchel';
+
+  adventure.loot = adventure.loot.filter(({x,kind}) => {
+    const collectedByHero = Math.abs(hero.x-x) < 15 && hero.y < 16;
+    const collectedByDog = dog.joined && Math.abs(dog.x-x) < 13 && dog.y < 16;
+    if (!collectedByHero && !collectedByDog) return true;
+    adventure.pack[kind]++;
+    say((collectedByHero ? 'Picked up ' : 'Bramble fetched ')+salvage[kind].name.toLowerCase(),1.5);
+    return false;
+  });
+}
+
+function weaponY() {
+  return GROUND-hero.y-(hero.crouching ? 7 : WEAPON_HEIGHT);
+}
+
+function aimAt(point) {
+  const dx = point.x+Math.round(camera)-hero.x;
+  const dy = point.y-weaponY();
+  return Math.hypot(dx,dy) > 1 ? Math.atan2(dy,dx) : hero.aim;
+}
+
+function trackPointer(e) {
+  const bounds = canvas.getBoundingClientRect();
+  pointer = {
+    x:clamp((e.clientX-bounds.left)*W/bounds.width,0,W),
+    y:clamp((e.clientY-bounds.top)*H/bounds.height,0,H)
+  };
+}
+
+function beginCharge(input) {
+  if (mode !== 'playing' || charge || guardActive()) return;
+  charge = { input, started:performance.now() };
+}
+
+function chargeLevel() {
+  if (!charge) return 0;
+  if (hero.weapon === 'beam') return hero.beamHeat;
+  const chargeMs = weapons[hero.weapon].charge*(rifleUpgrades(hero.weapon).mod === 'capacitor' ? .72 : 1);
+  return clamp((performance.now()-charge.started)/chargeMs,0,1);
+}
+
+function releaseCharge(input) {
+  if (charge?.input !== input) return;
+  if (hero.weapon !== 'beam') queuedShot = { angle:pointer ? aimAt(pointer) : hero.aim, power:chargeLevel() };
+  beamTrace = null;
+  charge = null;
+}
+
+const bindings = ['KeyA','KeyD','KeyS','ArrowLeft','ArrowRight','ArrowDown','Space','KeyK','KeyF','KeyE','KeyI','KeyQ','KeyH','KeyT','KeyZ','KeyX','Escape','Digit1','Digit2','Digit3','Enter'];
+
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || !bindings.includes(e.code)) return;
+  if (e.target instanceof HTMLButtonElement &&
+      (e.code === 'Enter' || (e.code === 'Space' && mode !== 'playing'))) return;
+  e.preventDefault();
+  if (e.repeat) return;
+
+  if (mode === 'upgrade' && ['Digit1','Digit2','Digit3'].includes(e.code)) {
+    upgrade({Digit1:'burst',Digit2:'spread',Digit3:'shield'}[e.code]);
+  } else if ((['pack','trade'].includes(mode) && ['Escape','KeyI','KeyE'].includes(e.code)) || (mode === 'sera' && e.code === 'Escape')) {
+    play();
+  } else if (e.code === 'Enter' && mode !== 'playing') {
+    primary.click();
+  } else if (e.code === 'Escape' && mode === 'playing') {
+    panel('paused','Paused','The pass can wait.','Resume');
+  } else if (mode === 'playing') {
+    if (e.code === 'KeyI') openPack();
+    else if (e.code === 'KeyE') interact();
+    else if (e.code === 'KeyQ') sendBramble();
+    else if (e.code === 'KeyZ' || e.code === 'KeyX') cycleWeapon(e.code === 'KeyZ' ? -1 : 1);
+    else if (e.code === 'KeyH') useSupply('bandage');
+    else if (e.code === 'KeyT') useSupply('heat');
+    else if (e.code === 'KeyK') beginCharge('KeyK');
+    else if (e.code === 'Space') jumpBuffer = JUMP_BUFFER;
+    else {
+      held.add(e.code);
+      if (e.code === 'KeyF' && guardActive()) cancelFire();
+    }
+  }
+});
+
+addEventListener('keyup', e => {
+  held.delete(e.code);
+  if (e.code === 'KeyK') releaseCharge('KeyK');
+});
+
+function cycleWeapon(step) {
+  const owned = [...adventure.owned];
+  if (owned.length < 2) return;
+  const index = (owned.indexOf(hero.weapon)+owned.length+step)%owned.length;
+  hero.weapon = owned[index];
+  cancelFire();
+  hero.muzzle = 0;
+  say(weapons[hero.weapon].name+' equipped',1.3);
+  updateHud();
+}
+
+function cancelFire() {
+  charge = queuedShot = null;
+  hero.burstLeft = 0;
+  glaiveSwing = beamTrace = tether = null;
+}
+
+function setMouseGuard(button) {
+  if (mouseGuardButton === button) return;
+  guardPressedAt = performance.now();
+  mouseGuardButton = button;
+  if (guardActive()) cancelFire();
+  menuOnlyGuard = false;
+}
+
+function releaseMouseGuard(button, toggleOnTap = true) {
+  if (mouseGuardButton !== button) return;
+  mouseGuardButton = null;
+  menuOnlyGuard = false;
+  guardReleasedAt = performance.now();
+  guardLatched = toggleOnTap && guardReleasedAt - guardPressedAt < GUARD_TAP_MS && !guardLatched;
+}
+
+function startMouseAction(e) {
+  if (mode !== 'playing' || (e.button !== 0 && e.button !== 2)) return;
+  e.preventDefault();
+  trackPointer(e);
+  if (e.button === 2 || e.ctrlKey) setMouseGuard(e.button);
+  else {
+    if (mouseGuardButton !== 0) beginCharge('mouse');
+  }
+}
+
+function finishMouseAction(e) {
+  if (mode !== 'playing') return;
+  releaseMouseGuard(e.button);
+  if (e.button === 0 && charge?.input === 'mouse') {
+    trackPointer(e);
+    releaseCharge('mouse');
+  }
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (mode !== 'playing') return;
+  if (e.pointerType === 'mouse') {
+    // Keep the compatibility mouse events for button presses made while another button is held.
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) {
+      trackPointer(e);
+      setMouseGuard(e.button);
+    } else if (e.button === 0) {
+      trackPointer(e);
+      beginCharge('mouse');
+    }
+  } else if (e.button === 0 && aimPointer === null) {
+    e.preventDefault();
+    aimPointer = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
+    trackPointer(e);
+    beginCharge(e.pointerId);
+  }
+});
+canvas.addEventListener('mousedown', startMouseAction);
+addEventListener('pointermove', e => {
+  if (mode !== 'playing') return;
+  if (e.pointerType !== 'mouse') {
+    if (e.pointerId === aimPointer) trackPointer(e);
+    return;
+  }
+  if (e.target === canvas || charge?.input === 'mouse' || mouseGuardButton !== null) {
+    trackPointer(e);
+  }
+  if (e.button === 2 && !(e.buttons & 2)) releaseMouseGuard(2);
+  else if (e.target === canvas && mouseGuardButton === null && (e.buttons & 2)) setMouseGuard(2);
+});
+addEventListener('mousemove', e => {
+  if (mode === 'playing' && e.target === canvas && (e.buttons & 2) && mouseGuardButton !== 2) {
+    trackPointer(e);
+    setMouseGuard(2);
+  }
+});
+addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') finishMouseAction(e);
+  else if (e.pointerId === aimPointer) {
+    aimPointer = null;
+    trackPointer(e);
+    releaseCharge(e.pointerId);
+  }
+});
+addEventListener('mouseup', finishMouseAction);
+addEventListener('auxclick', e => {
+  if (e.button === 2) releaseMouseGuard(2);
+});
+addEventListener('contextmenu', e => {
+  if (mode !== 'playing') return;
+  e.preventDefault();
+  if (e.pointerType === 'touch' || e.target !== canvas || performance.now()-guardReleasedAt < 90) return;
+  if (menuOnlyGuard) {
+    releaseMouseGuard(mouseGuardButton, false);
+    return;
+  }
+  if (mouseGuardButton !== null) return;
+  trackPointer(e);
+  if (e.buttons & 2) setMouseGuard(2);
+  else if (e.ctrlKey && (e.buttons & 1)) setMouseGuard(0);
+  else if (e.button === 2 || e.ctrlKey || e.pointerType === 'mouse') {
+    setMouseGuard(e.ctrlKey && e.button === 0 ? 0 : 2);
+    menuOnlyGuard = true;
+  }
+});
+
+addEventListener('pointercancel', e => {
+  if (e.pointerType === 'mouse') {
+    if (mouseGuardButton !== null) releaseMouseGuard(mouseGuardButton);
+    if (charge?.input === 'mouse') charge = null;
+  }
+});
+function cancelTouchAim(e) {
+  if (aimPointer !== e.pointerId) return;
+  aimPointer = null;
+  if (charge?.input === e.pointerId) charge = null;
+}
+canvas.addEventListener('pointercancel', cancelTouchAim);
+canvas.addEventListener('lostpointercapture', cancelTouchAim);
+addEventListener('blur', () => {
+  if (mode === 'playing') panel('paused','Paused','The pass can wait.','Resume');
+});
+
+// A local input trace makes device-specific Chrome event sequences visible during play.
+if (typeof location !== 'undefined' && location.search.includes('input=1')) {
+  const trace = byId('inputTrace');
+  const events = [];
+  trace.hidden = false;
+  trace.textContent = 'Shield input trace · Press and hold the right button over the game.';
+  for (const type of ['pointerdown','mousedown','contextmenu','pointerup','mouseup','auxclick','pointercancel','pointermove','mousemove']) {
+    let lastButtons;
+    addEventListener(type, e => {
+      if (e.type.endsWith('move') && lastButtons === e.buttons) return;
+      lastButtons = e.buttons;
+      events.push(`${Math.round(performance.now())} ${e.type}(${e.button},${e.buttons}) ${mouseGuardButton === null ? 'up' : 'held'}`);
+      trace.textContent = events.slice(-12).join(' · ');
+      if (events.length > 12) events.shift();
+    });
+  }
+}
+
+function particles(x,y,color,count=8) {
+  for (let i=0; i<count; i++) {
+    const life = .15+Math.random()*.28;
+    sparks.push({ x,y,vx:(Math.random()-.5)*152,vy:-22-Math.random()*70,life,color });
+  }
+}
+
+function enemyWeaponY(enemy) {
+  return GROUND-enemy.y-14*enemy.size;
+}
+
+function guardRequested() {
+  return guardLatched || mouseGuardButton !== null || held.has('KeyF');
+}
+
+function guardActive() {
+  return mode === 'playing' && guardRequested() && !hero.guardCooling && hero.guardEnergy > 0;
+}
+
+function inGuardArc(x,y) {
+  return x*Math.cos(hero.aim)+y*Math.sin(hero.aim) >= Math.hypot(x,y)*Math.cos(GUARD_HALF_ANGLE);
+}
+
+function drainGuard(amount) {
+  hero.guardEnergy = Math.max(0,hero.guardEnergy-amount);
+  if (hero.guardEnergy > .00001) return;
+  hero.guardEnergy = 0;
+  hero.guardCooling = true;
+  guardLatched = false;
+  say('Shield spent · Recharging',1.65);
+}
+
+function guardImpact(x,y) {
+  drainGuard(1);
+  hero.guardFlash = .19;
+  particles(hero.x+x,weaponY()+y,'#94ffdc',10);
+  beep(680,390,.11,.022);
+}
+
+function blockBolt(oldX,oldY,dx,dy) {
+  if (!guardActive()) return false;
+  const x = oldX-hero.x;
+  const y = oldY-weaponY();
+  const stepSquared = dx*dx+dy*dy;
+  const projection = x*dx+y*dy;
+  const distance = x*x+y*y-GUARD_RADIUS*GUARD_RADIUS;
+  const discriminant = projection*projection-stepSquared*distance;
+  if (!stepSquared || projection >= 0 || discriminant < 0) return false;
+  const t = (-projection-Math.sqrt(discriminant))/stepSquared;
+  if (t < 0 || t > 1) return false;
+  const hitX = x+dx*t;
+  const hitY = y+dy*t;
+  if (!inGuardArc(hitX,hitY)) return false;
+  guardImpact(hitX,hitY);
+  return true;
+}
+
+function takeMeleeHit(enemy) {
+  const x = enemy.x-hero.x;
+  const y = enemyWeaponY(enemy)-weaponY();
+  const distance = Math.hypot(x,y);
+  if (guardActive() && distance > 0 && inGuardArc(x,y)) {
+    guardImpact(x*GUARD_RADIUS/distance,y*GUARD_RADIUS/distance);
+  } else hurt(enemy.damage,enemy.facing);
+}
+
+function hitEnemy(enemy,shot) {
+  let damage = shot.damage;
+  const fromFront = shot.dx*enemy.facing < 0;
+  if (enemy.shield && fromFront) {
+    enemy.shieldFlash = .18;
+    const bonus = shot.weapon === 'forge' ? 2 : shot.shieldBonus ?? 0;
+    const absorbed = Math.min(enemy.shield,shot.damage+bonus);
+    enemy.shield -= absorbed;
+    if (enemy.shield > 0) {
+      particles(enemy.x+enemy.facing*14,enemyWeaponY(enemy),'#88def2',5);
+      beep(510,330,.09,.018);
+    } else {
+      particles(enemy.x+enemy.facing*14,enemyWeaponY(enemy),'#85e0ff',16);
+      say('Shield broken',1.4);
+    }
+    damage -= Math.max(0,absorbed-bonus);
+    if (damage <= 0) return;
+  }
+
+  enemy.hp -= damage;
+  enemy.flash = .13;
+  enemy.knock = shot.dx*(shot.power >= SHIELD_BREAK_CHARGE ? 94 : 34);
+  if (shot.power >= SHIELD_BREAK_CHARGE) {
+    enemy.wind = 0;
+    if (enemy.melee) enemy.muzzle = 0;
+    enemy.cooldown = Math.max(enemy.cooldown,.30);
+  }
+  particles(enemy.x,enemyWeaponY(enemy),'#b6ffca',6);
+  shake = shot.power >= SHIELD_BREAK_CHARGE ? .14 : .05;
+  if (enemy.hp > 0) return;
+
+  kills++;
+  const minX = phase === 'combat' ? gates[wave]-ARENA_BACK+7 : 22;
+  const maxX = gates[wave]+ARENA_AHEAD-7;
+  const x = clamp(enemy.x,minX,maxX);
+  adventure.loot.push({x,kind:enemy.human ? 'buckles' : enemyTypes[enemy.type].shield ? 'parts' : 'scrap'});
+  particles(enemy.x,GROUND-10,'#b8a161',11);
+  if (kills % 5 === 0 && enemy.type !== 'chief') {
+    drops.push(x);
+  }
+}
+
+function hurt(damage,direction) {
+  if (hero.inv > 0) return;
+  const armor = adventure.armor.get(hero.armor);
+  const absorbed = Math.min(armor,damage);
+  if (absorbed) {
+    adventure.armor.set(hero.armor,armor-absorbed);
+    particles(hero.x,weaponY(),'#f3d098',6);
+    if (armor === absorbed) say('Armor broken · Repair at a trader or clear a watchfire',2.8);
+  }
+  hero.hp = Math.max(0,hero.hp-damage+absorbed);
+  hero.inv = .68;
+  hero.x = clamp(hero.x+direction*14,phase === 'combat' ? gates[wave]-ARENA_BACK : 17,gates[wave]+ARENA_AHEAD);
+  shake = .2;
+  particles(hero.x,weaponY(),'#ff9278');
+  beep(112,53,.18,.045);
+}
+
+function rifleLength(side,long=false) {
+  return side === 'player' ? weapons[hero.weapon].length : long ? 38 : 28;
+}
+
+function enemyRifleScale(enemy) {
+  return enemy.size*.85;
+}
+
+function emitBolt(side,x,y,angle,speed,damage,power,length=0,barrelAngle=angle,mod=null) {
+  const muzzleX = x+length*Math.cos(barrelAngle);
+  const muzzleY = y+length*Math.sin(barrelAngle);
+  const shot = {side,x:muzzleX,y:muzzleY,dx:Math.cos(angle),dy:Math.sin(angle),speed,damage,power,travel:0,weapon:side === 'player' ? hero.weapon : null,mod,pierced:null,range:Infinity};
+  if (shot.weapon === 'cinder') shot.range = (81+66*power)*(mod === 'furnace' ? 1.5 : 1);
+  // A target touching the barrel still intercepts the shot at point-blank range.
+  if (!length || !boltHits(shot,x,y,muzzleX-x,muzzleY-y)) bolts.push(shot);
+}
+
+function fireRifle({angle,power}) {
+  const weapon = weapons[hero.weapon];
+  const length = rifleLength('player');
+  const upgrades = rifleUpgrades(hero.weapon);
+  const mod = power >= SHIELD_BREAK_CHARGE ? upgrades.mod : null;
+  const speed = weapon.speed+95*power;
+  const baseDamage = 1+weapon.damage+upgrades.level+Math.floor(4.5*power);
+  const furnaceBonus = mod === 'furnace' ? 1 : 0;
+  emitBolt('player',hero.x,weaponY(),angle,speed,baseDamage+furnaceBonus,power,length,angle,mod);
+  if (hero.weapon === 'cinder') {
+    const fan = .23-.11*power;
+    for (const offset of [-fan,fan]) {
+      emitBolt('player',hero.x,weaponY(),angle+offset,speed,1+Math.floor(2*power)+furnaceBonus,power,length,angle,mod);
+    }
+  }
+  if (mod === 'fork') {
+    for (const offset of [-.26,.26]) {
+      emitBolt('player',hero.x,weaponY(),angle+offset,speed,2,power,length,angle,'fork');
+    }
+  }
+  for (let pair=1; pair<=hero.spread; pair++) {
+    for (const side of [-1,1]) {
+      emitBolt('player',hero.x,weaponY(),angle+side*pair*.105,speed,1+Math.floor(2*power)+furnaceBonus,
+        power,length,angle,mod === 'furnace' ? mod : null);
+    }
+  }
+  hero.reload = (hero.burst > 1 ? .105 : .145)*weapon.reload*(1-.1*upgrades.level);
+  hero.muzzle = .12;
+  hero.lastPower = power;
+  beep(690+power*240,290-power*80,.09+power*.12,.025+power*.018);
+}
+
+function overlapsPlatform(x,halfWidth,platform) {
+  return x+halfWidth > platform.left && x-halfWidth < platform.right;
+}
+
+function platformUnder(actor) {
+  return platforms.find(platform => actor.y === platform.height && overlapsPlatform(actor.x,5,platform));
+}
+
+function moveVertically(actor,dt,halfWidth) {
+  const from = actor.y;
+  const next = from+actor.vy*dt;
+  if (actor.vy <= 0) {
+    let floor = 0;
+    for (const platform of platforms) {
+      if (platform.height > floor && from >= platform.height && next <= platform.height &&
+          overlapsPlatform(actor.x,halfWidth,platform)) floor = platform.height;
+    }
+    if (next <= floor) {
+      actor.y = floor;
+      actor.vy = 0;
+      actor.grounded = true;
+      return;
+    }
+  }
+  actor.y = next;
+  actor.vy -= GRAVITY*dt;
+  actor.grounded = false;
+}
+
+function spawnEnemy(type,side,roadX=null,spacing=0,emerge=0) {
+  const spec = enemyTypes[type];
+  const gate = gates[wave];
+  const left = gate-ARENA_OFFSET;
+  const patrol = roadX !== null;
+  const offscreen = camera+(side > 0 ? W+ENTRY_MARGIN : -ENTRY_MARGIN);
+  const x = emerge ? roadX : patrol || touchLayout.matches
+    ? offscreen+side*spacing
+    : side > 0 ? Math.max(camera,left)+W+ENTRY_MARGIN : Math.min(camera,left)-ENTRY_MARGIN;
+  mobs.push({
+    ...spec,type,x,y:0,vy:0,grounded:true,entrance:emerge ? null : roadX ?? (gate+(side > 0 ? 172 : -150)),patrol,emerge,max:spec.hp,
+    cooldown:.25,jumpDelay:0,wind:0,aim:side > 0 ? Math.PI : 0,facing:-side,
+    muzzle:0,flash:0,shieldFlash:0,knock:0,moving:true
+  });
+}
+
+function updateEnemies(dt,arenaLeft) {
+  for (const enemy of mobs) {
+    if (enemy.hp <= 0) continue;
+    if (enemy.emerge > 0) {
+      enemy.emerge = Math.max(0,enemy.emerge-dt);
+      continue;
+    }
+    enemy.flash -= dt;
+    enemy.shieldFlash -= dt;
+    const beforeAttack = enemy.muzzle;
+    enemy.muzzle -= dt;
+    if (enemy.melee && beforeAttack > MELEE_CONTACT_LEFT && enemy.muzzle <= MELEE_CONTACT_LEFT) {
+      const reach = (hero.x-enemy.x)*enemy.facing;
+      if (reach > -6 && reach < enemy.range+8 && Math.abs(hero.y-enemy.y) < 16) takeMeleeHit(enemy);
+    }
+    enemy.cooldown -= dt;
+    enemy.jumpDelay -= dt;
+    if (enemy.patrol && enemy.entrance !== null) {
+      enemy.x += enemy.knock*dt;
+    } else if (enemy.patrol || phase === 'travel') {
+      enemy.x = clamp(enemy.x+enemy.knock*dt,17,gates[wave]+ARENA_AHEAD);
+    } else if (!touchLayout.matches || enemy.entrance === null) {
+      enemy.x = clamp(enemy.x+enemy.knock*dt,arenaLeft-ENTRY_MARGIN,arenaLeft+W+ENTRY_MARGIN);
+    }
+    enemy.knock *= Math.pow(.002,dt);
+    enemy.moving = false;
+    if (enemy.entrance !== null) {
+      const distance = enemy.entrance-enemy.x;
+      const stride = (enemy.patrol ? 132 : 155)*dt;
+      enemy.facing = Math.sign(distance) || enemy.facing;
+      enemy.x += clamp(distance,-stride,stride);
+      enemy.moving = true;
+      if (Math.abs(distance) <= stride) enemy.entrance = null;
+    } else if (enemy.wind > 0) {
+      enemy.wind -= dt;
+      if (enemy.wind <= 0) {
+        if (enemy.melee) {
+          enemy.muzzle = MELEE_SWING;
+          beep(190,84,.075,.013);
+        } else {
+          emitBolt('enemy',enemy.x,enemyWeaponY(enemy),enemy.aim,enemy.boltSpeed,enemy.damage,0,
+            rifleLength('enemy',enemy.type === 'marksman')*enemyRifleScale(enemy));
+          enemy.muzzle = .13;
+          beep(254,132,.095,.013);
+        }
+        enemy.cooldown = enemy.reload-Math.min(.19,wave*.045);
+      }
+    } else if (!enemy.melee || enemy.muzzle <= 0) {
+      const dx = hero.x-enemy.x;
+      const distance = Math.abs(dx);
+      const height = hero.y-enemy.y;
+      enemy.facing = Math.sign(dx) || enemy.facing;
+      enemy.aim = Math.atan2(weaponY()-enemyWeaponY(enemy),dx);
+
+      const pounce = enemy.melee && distance > enemy.range+12 && distance < 65;
+      if (enemy.grounded && enemy.jumpDelay <= 0 && distance < 155 && (height > 19 || pounce)) {
+        enemy.vy = enemy.leap;
+        enemy.grounded = false;
+        enemy.jumpDelay = enemy.melee ? 1.15 : 1.65;
+      }
+
+      if (distance > enemy.range || (enemy.melee && Math.abs(height) >= 15)) {
+        let target = hero.x;
+        if (enemy.melee && enemy.grounded && height < -18) {
+          const ledge = platformUnder(enemy);
+          if (ledge) target = enemy.x-ledge.left < ledge.right-enemy.x ? ledge.left-10 : ledge.right+10;
+        }
+        const approach = target-enemy.x;
+        const movement = clamp(approach,-enemy.speed*dt,enemy.speed*dt);
+        enemy.x += movement;
+        enemy.moving = movement !== 0;
+      } else if (enemy.cooldown <= 0) {
+        enemy.wind = enemyTypes[enemy.type].wind;
+      }
+    }
+    moveVertically(enemy,dt,5*enemy.size);
+  }
+}
+
+function segmentDistanceSquared(x,y,dx,dy) {
+  const length = dx*dx+dy*dy;
+  const along = length ? clamp((x*dx+y*dy)/length,0,1) : 0;
+  return (x-dx*along)**2+(y-dy*along)**2;
+}
+
+function boltHits(shot,oldX,oldY,dx,dy) {
+  if (shot.side === 'player') {
+    let target;
+    let nearest = Infinity;
+    for (const enemy of mobs) {
+      if (enemy.hp <= 0 || enemy.emerge > 0 || enemy === shot.pierced) continue;
+      const radius = Math.max(8,10*enemy.size)+2*shot.power;
+      const ex = enemy.x-oldX;
+      const ey = enemyWeaponY(enemy)-oldY;
+      if (segmentDistanceSquared(ex,ey,dx,dy) > radius*radius) continue;
+      const distance = ex*ex+ey*ey;
+      if (distance < nearest) {
+        nearest = distance;
+        target = enemy;
+      }
+    }
+    if (target) {
+      const shieldFacing = target.shield > 0 && shot.dx*target.facing < 0;
+      hitEnemy(target,shot);
+      if (shot.mod === 'splash') plasmaBurst(target,shot);
+      if (shot.weapon === 'storm' && !(shieldFacing && target.shield > 0)) chainLightning(target,shot);
+      if (shot.weapon === 'cinder') particles(target.x,enemyWeaponY(target),'#efaa65',9);
+      if (shot.mod === 'pierce' && !shot.pierced && !(shieldFacing && target.shield > 0)) {
+        shot.pierced = target;
+        return boltHits(shot,oldX,oldY,dx,dy);
+      }
+      return true;
+    }
+  } else {
+    if (blockBolt(oldX,oldY,dx,dy)) return true;
+    if (segmentDistanceSquared(hero.x-oldX,weaponY()-oldY,dx,dy) <= (hero.crouching ? 5 : 9)**2) {
+      hurt(shot.damage,shot.dx);
+      return true;
+    }
+  }
+  return false;
+}
+
+function plasmaBurst(target,shot) {
+  const y = enemyWeaponY(target);
+  particles(target.x,y,'#ffd18b',18);
+  for (const enemy of mobs) {
+    if (enemy === target || enemy.hp <= 0 || enemy.emerge > 0) continue;
+    if (Math.hypot(enemy.x-target.x,enemyWeaponY(enemy)-y) > 37) continue;
+    hitEnemy(enemy,{damage:2,power:0,dx:Math.sign(enemy.x-target.x) || shot.dx});
+  }
+}
+
+function chainLightning(origin,shot) {
+  const visited = new Set([origin]);
+  let source = origin;
+  for (let jump=0; jump<(shot.mod === 'relay' ? 2 : 1); jump++) {
+    const y = enemyWeaponY(source);
+    let target;
+    let reach = 58;
+    for (const enemy of mobs) {
+      if (enemy.hp <= 0 || enemy.emerge > 0 || visited.has(enemy)) continue;
+      const distance = Math.hypot(enemy.x-source.x,enemyWeaponY(enemy)-y);
+      if (distance >= reach) continue;
+      reach = distance;
+      target = enemy;
+    }
+    if (!target) return;
+    arcs.push({x:source.x,y,toX:target.x,toY:enemyWeaponY(target),life:.16});
+    visited.add(target);
+    hitEnemy(target,{damage:1+Math.floor(2*shot.power),power:0,dx:Math.sign(target.x-source.x)});
+    source = target;
+  }
+}
+
+function updateBolts(dt) {
+  bolts = bolts.filter(shot => {
+    const oldX = shot.x;
+    const oldY = shot.y;
+    const step = Math.min(shot.speed*dt,shot.range-shot.travel);
+    const dx = shot.dx*step;
+    const dy = shot.dy*step;
+    shot.x += dx;
+    shot.y += dy;
+
+    shot.travel += step;
+    if (shot.side === 'enemy' && wards.some(ward =>
+      ward.age >= 0 && segmentDistanceSquared(ward.x-oldX,ward.y-oldY,dx,dy) <= ward.radius**2)) {
+      particles(shot.x,shot.y,'#addccc',4);
+      return false;
+    }
+    if (boltHits(shot,oldX,oldY,dx,dy)) return false;
+    return shot.travel < shot.range && shot.x > camera-80 && shot.x < camera+W+80 && shot.y > -30 && shot.y < GROUND;
+  });
+}
+
+const GLAIVE_SWING_TIME = .28;
+
+function fireWeapon({angle,power},repeat=0) {
+  const weapon = weapons[hero.weapon];
+  if (!weapon.type) {
+    fireRifle({angle,power});
+    return;
+  }
+  const upgrades = rifleUpgrades(hero.weapon);
+  if (weapon.type === 'ring') {
+    throwMoonring(angle,power,upgrades);
+  } else if (weapon.type === 'tether') {
+    fireGraveline(angle,power,upgrades);
+  } else if (weapon.type === 'ward') {
+    ringWardbell(power,upgrades);
+  } else if (weapon.type === 'melee') {
+    const hooked = upgrades.mod === 'hook' && power >= SHIELD_BREAK_CHARGE;
+    glaiveSwing = {angle,power,age:0,hit:false,
+      range:52+22*power+(hooked ? 18 : 0),
+      halfAngle:.72+Math.min(.42,hero.spread*.12),
+      damage:3+upgrades.level+Math.floor(4*power), shieldBonus:hooked ? 2 : 0};
+    hero.reload = Math.max(.28,(hero.burst > 1 ? .40 : .48)-.065*upgrades.level);
+    beep(225,135,.13,.022);
+  } else if (weapon.type === 'mine') {
+    const step = Math.cos(angle)*(45+100*power)+repeat*22*Math.sign(Math.cos(angle));
+    const gate = gates[wave];
+    const left = phase === 'combat' ? gate-ARENA_BACK : 23;
+    const x = clamp(hero.x+step,left+6,gate+ARENA_AHEAD-6);
+    const y = platforms.reduce((floor,ledge) =>
+      ledge.height <= hero.y+2 && x >= ledge.left && x <= ledge.right ? Math.max(ledge.height,floor) : floor,0);
+    const tremor = upgrades.mod === 'tremor' && power >= SHIELD_BREAK_CHARGE;
+    if (mines.length >= 3) mines.shift();
+    mines.push({x,y,fromX:hero.x,fromY:weaponY(),arm:.44,radius:36+16*power+4*hero.spread+(tremor ? 17 : 0),
+      damage:3+upgrades.level+Math.floor(3*power),power:tremor ? 1 : 0});
+    hero.reload = (hero.burst > 1 ? .30 : .46)-.06*upgrades.level;
+    particles(hero.x,weaponY(),'#a8c58f',5);
+    beep(320,210,.09,.022);
+  }
+}
+
+function updateGlaive(dt) {
+  if (!glaiveSwing) return;
+  const swing = glaiveSwing;
+  swing.age += dt;
+  if (swing.age >= .095 && !swing.hit) {
+    swing.hit = true;
+    for (const enemy of mobs) {
+      if (enemy.hp <= 0 || enemy.emerge > 0) continue;
+      const dx = enemy.x-hero.x;
+      const dy = enemyWeaponY(enemy)-weaponY();
+      const angular = Math.atan2(Math.sin(Math.atan2(dy,dx)-swing.angle),Math.cos(Math.atan2(dy,dx)-swing.angle));
+      if (Math.hypot(dx,dy) > swing.range || Math.abs(angular) > swing.halfAngle) continue;
+      hitEnemy(enemy,{...swing,dx:Math.sign(dx)});
+    }
+  }
+  if (swing.age >= GLAIVE_SWING_TIME) glaiveSwing = null;
+}
+
+function updateMines(dt) {
+  mines = mines.filter(mine => {
+    const previous = mine.arm;
+    mine.arm -= dt;
+    if (previous > .20 && mine.arm <= .20) particles(mine.x,GROUND-mine.y-3,'#a8c58f',5);
+    if (mine.arm > 0) return true;
+    const distance = enemy => Math.hypot(enemy.x-mine.x,enemy.y-mine.y);
+    const live = mobs.filter(enemy => enemy.hp > 0 && enemy.emerge <= 0);
+    if (!live.some(enemy => distance(enemy) < Math.min(26,mine.radius))) return true;
+    for (const enemy of live) {
+      if (distance(enemy) > mine.radius) continue;
+      hitEnemy(enemy,{damage:mine.damage,power:mine.power,dx:Math.sign(enemy.x-mine.x)});
+    }
+    particles(mine.x,GROUND-mine.y-6,'#ffbd70',22);
+    particles(mine.x,GROUND-mine.y-2,'#dd7657',12);
+    beep(140,54,.22,.042);
+    shake = .15;
+    return false;
+  });
+}
+
+function updateBeam(dt) {
+  beamTrace = null;
+  if (hero.weapon !== 'beam' || !charge || hero.beamLocked || guardActive()) {
+    hero.beamHeat = Math.max(0,hero.beamHeat-.57*dt);
+    if (hero.beamHeat <= .22 && !charge) hero.beamLocked = false;
+    return;
+  }
+  const upgrades = rifleUpgrades('beam');
+  const ux = Math.cos(hero.aim), uy = Math.sin(hero.aim);
+  const y = weaponY();
+  const {reach,target} = targetOnLine(hero.x,y,ux,uy,228,7+hero.spread*1.5);
+  beamTrace = {angle:hero.aim,distance:reach,y};
+  if (target && hero.reload <= 0) {
+    hitEnemy(target,{damage:2+upgrades.level,power:0,dx:ux});
+    hero.reload = Math.max(.095,.235-.033*upgrades.level-.023*(hero.burst-1));
+    beep(410+hero.beamHeat*170,330,.08,.012);
+  }
+  hero.beamHeat = Math.min(1,hero.beamHeat+(upgrades.mod === 'vent' ? .36 : .515)*dt);
+  if (hero.beamHeat >= 1) {
+    hero.beamLocked = true;
+    say('Cutter overheated · Release fire to reset',2);
+  }
+}
+
+function throwMoonring(angle,power,upgrades) {
+  if (moonrings.length >= 3) {
+    hero.reload = .15;
+    return;
+  }
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const y = weaponY();
+  const range = 102+114*power+hero.spread*10;
+  moonrings.push({
+    x:hero.x+dx*10,y:y+dy*10,dx,dy,
+    remaining:dy > 0 ? Math.min(range,Math.max(0,(GROUND-y-12)/dy)) : range,
+    age:0, returning:false, hit:new Set(),
+    damage:2+upgrades.level+Math.floor(power*2),
+    silver:upgrades.mod === 'silver' && power >= SHIELD_BREAK_CHARGE
+  });
+  hero.reload = (hero.burst > 1 ? .32 : .55)-upgrades.level*.065;
+  beep(590,295,.14,.022);
+}
+
+function updateMoonrings(dt) {
+  moonrings = moonrings.filter(ring => {
+    ring.age += dt;
+    let distance;
+    if (ring.returning) {
+      const backX = hero.x-ring.x;
+      const backY = weaponY()-ring.y;
+      distance = Math.hypot(backX,backY);
+      if (distance < 10 || ring.age > 3) {
+        particles(ring.x,ring.y,'#cde4e3',5);
+        return false;
+      }
+      ring.dx = backX/distance;
+      ring.dy = backY/distance;
+    } else {
+      distance = ring.remaining;
+    }
+    const step = Math.min(distance,dt*(ring.returning ? 390 : 326));
+    const dx = ring.dx*step;
+    const dy = ring.dy*step;
+    for (const enemy of mobs) {
+      if (enemy.hp <= 0 || enemy.emerge > 0 || ring.hit.has(enemy)) continue;
+      const x = enemy.x-ring.x;
+      const y = enemyWeaponY(enemy)-ring.y;
+      const radius = 7+enemy.size*5;
+      if (segmentDistanceSquared(x,y,dx,dy) > radius*radius) continue;
+      ring.hit.add(enemy);
+      const chargedReturn = ring.returning && ring.silver;
+      hitEnemy(enemy,{damage:ring.damage+(chargedReturn ? 2 : 0),
+        power:chargedReturn ? 1 : 0,dx:ring.dx});
+    }
+    ring.x += dx;
+    ring.y += dy;
+    if (!ring.returning) {
+      ring.remaining -= step;
+      if (ring.remaining <= 0 || ring.y < -20) {
+        ring.returning = true;
+        ring.hit.clear();
+      }
+    }
+    return true;
+  });
+}
+
+function targetOnLine(x,y,ux,uy,range,width) {
+  let reach = uy > 0 ? Math.min(range,(GROUND-y)/uy) : range;
+  let target = null;
+  for (const enemy of mobs) {
+    if (enemy.hp <= 0 || enemy.emerge > 0) continue;
+    const dx = enemy.x-x;
+    const dy = enemyWeaponY(enemy)-y;
+    const along = dx*ux+dy*uy;
+    if (along < 0 || along >= reach || Math.abs(dx*uy-dy*ux) > width) continue;
+    reach = along;
+    target = enemy;
+  }
+  return {reach,target};
+}
+
+function fireGraveline(angle,power,upgrades) {
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  const x = hero.x;
+  const y = weaponY();
+  const {reach,target} = targetOnLine(x,y,ux,uy,141+102*power,9+hero.spread*2);
+  const reinforced = upgrades.mod === 'winch' && power >= SHIELD_BREAK_CHARGE;
+  const blocked = target && target.shield > 0 && ux*target.facing < 0;
+  if (target) {
+    hitEnemy(target,{damage:2+upgrades.level+Math.floor(power*2),power,dx:ux,shieldBonus:reinforced ? 3 : 0});
+    particles(target.x,enemyWeaponY(target),'#d1b3ff',6);
+  }
+  const latched = target && target.hp > 0 && !(blocked && target.shield > 0);
+  tether = {
+    target:latched ? target : null,x:x+ux*reach,y:y+uy*reach,
+    time:latched ? .27+.15*power : .13,pull:(reinforced ? 300 : 216)+50*power
+  };
+  hero.reload = Math.max(.45,(hero.burst > 1 ? .55 : .65)-.045*upgrades.level);
+  beep(520,160,.14,.023);
+}
+
+function updateTether(dt) {
+  tether.time -= dt;
+  const enemy = tether.target;
+  if (tether.time <= 0 || (enemy && enemy.hp <= 0)) {
+    tether = null;
+    return;
+  }
+  if (!enemy) return;
+  const distance = hero.x-enemy.x;
+  const strength = tether.pull/(enemy.type === 'chief' ? 2.1 : 1);
+  enemy.knock = 0;
+  if (Math.abs(distance) > 34) {
+    enemy.x += Math.sign(distance)*Math.min(strength*dt,Math.abs(distance)-34);
+  }
+  enemy.wind = 0;
+  if (enemy.melee) enemy.muzzle = 0;
+  enemy.cooldown = Math.max(enemy.cooldown,.18);
+  enemy.jumpDelay = Math.max(enemy.jumpDelay,.26);
+}
+
+function ringWardbell(power,upgrades) {
+  const ward = {x:hero.x,y:weaponY(),age:0,radius:0,max:51+52*power+hero.spread*7,
+    damage:2+upgrades.level+Math.floor(2*power),power,hit:new Set()};
+  wards.push(ward);
+  if (upgrades.mod === 'echo' && power >= SHIELD_BREAK_CHARGE) {
+    wards.push({...ward,age:-.33,max:ward.max*.64,damage:1,power:0,hit:new Set(),echo:true});
+  }
+  hero.reload = Math.max(.42,(hero.burst > 1 ? .50 : .69)-upgrades.level*.07);
+  beep(305,110,.21,.025);
+}
+
+function updateWards(dt) {
+  wards = wards.filter(ward => {
+    ward.age += dt;
+    if (ward.age < 0) return true;
+    if (ward.age > .34) return false;
+    ward.radius = ward.max*Math.min(1,ward.age/.265);
+    for (const enemy of mobs) {
+      if (enemy.hp <= 0 || enemy.emerge > 0 || ward.hit.has(enemy)) continue;
+      if (Math.hypot(enemy.x-ward.x,enemyWeaponY(enemy)-ward.y) > ward.radius) continue;
+      ward.hit.add(enemy);
+      hitEnemy(enemy,{damage:ward.damage,power:ward.power,dx:Math.sign(enemy.x-ward.x)});
+    }
+    return true;
+  });
+}
+
+function updateSpecialWeapons(dt) {
+  updateGlaive(dt);
+  if (mines.length) updateMines(dt);
+  updateBeam(dt);
+  if (moonrings.length) updateMoonrings(dt);
+  if (tether) updateTether(dt);
+  if (wards.length) updateWards(dt);
+}
+
+function update(dt) {
+  clock += dt;
+  hero.inv -= dt;
+  hero.reload -= dt;
+  hero.muzzle -= dt;
+  hero.guardFlash -= dt;
+  if (guardActive()) {
+    cancelFire();
+    drainGuard(.75*dt);
+  } else {
+    hero.guardEnergy = Math.min(hero.guardMax,hero.guardEnergy+1.45*dt);
+    if (hero.guardEnergy === hero.guardMax && !guardRequested()) hero.guardCooling = false;
+  }
+  noticeTime -= dt;
+  shake -= dt;
+
+  const left = held.has('KeyA') || held.has('ArrowLeft');
+  const right = held.has('KeyD') || held.has('ArrowRight');
+  const move = stickMove || Number(right)-Number(left);
+  const gate = gates[wave];
+  const arenaLeft = gate-ARENA_OFFSET;
+  const pack = packs[wave];
+  const duck = stickDuck || held.has('KeyS') || held.has('ArrowDown');
+  hero.moving = move;
+  const speed = (duck && hero.grounded ? 67 : 126)*armors[hero.armor].speed;
+  hero.x = clamp(hero.x+move*speed*dt,phase === 'combat' ? gate-ARENA_BACK : 17,gate+ARENA_AHEAD);
+  if (jumpBuffer > 0 && hero.grounded) {
+    hero.vy = 249;
+    hero.grounded = false;
+    jumpBuffer = 0;
+    beep(130,230,.09);
+  }
+  jumpBuffer = Math.max(0,jumpBuffer-dt);
+  moveVertically(hero,dt,6);
+  hero.crouching = duck && hero.grounded;
+  if (touchLayout.matches) camera = hero.x-W/2;
+  else camera += (clamp(hero.x-202,0,arenaLeft)-camera)*Math.min(1,dt*7);
+  if (pointer) {
+    hero.aim = aimAt(pointer);
+    const horizontal = Math.cos(hero.aim);
+    if (Math.abs(horizontal) > .04) hero.facing = Math.sign(horizontal);
+  } else {
+    if (move) hero.facing = move;
+    hero.aim = hero.facing > 0 ? 0 : Math.PI;
+  }
+  if (!guardActive() && hero.reload <= 0) {
+    if (hero.burstLeft > 0) {
+      fireWeapon({angle:hero.aim,power:hero.burstPower},hero.burst-hero.burstLeft);
+      hero.burstLeft--;
+    } else if (queuedShot) {
+      hero.burstLeft = hero.burst-1;
+      hero.burstPower = queuedShot.power;
+      fireWeapon(queuedShot);
+      queuedShot = null;
+    }
+  }
+
+  if (phase === 'travel') encounterPatrols();
+  if (phase === 'travel' && hero.x >= gate) {
+    phase = 'combat';
+    spawn = 0;
+    nextSpawn = .15;
+    say(places[wave]+' · Ambush!',2);
+  }
+  if (phase === 'combat' && spawn < pack.length) {
+    nextSpawn -= dt;
+    if (nextSpawn <= 0) {
+      spawnEnemy(pack[spawn],spawn > 0 && (spawn+wave)%4 === 0 ? -1 : 1);
+      spawn++;
+      nextSpawn += spawn%4 === 0 ? .69-wave*.075 : .20-wave*.016;
+    }
+  }
+
+  updateSpecialWeapons(dt);
+  updateBolts(dt);
+  updateEnemies(dt,arenaLeft);
+  mobs = mobs.filter(enemy => enemy.hp > 0);
+
+  pickupHint = '';
+  drops = drops.filter(x => {
+    const distance = Math.abs(hero.x-x);
+    if (distance < 38 && hero.y < 22) {
+      pickupHint = hero.hp >= hero.max ? 'Healing potion · Health full' : 'Walk over the healing potion to use it';
+    }
+    if (distance > 15 || hero.y > 15 || hero.hp >= hero.max) return true;
+    const recovered = Math.min(2,hero.max-hero.hp);
+    hero.hp += recovered;
+    pickupHint = '';
+    say('Healing potion · +'+recovered+' health',1.6);
+    particles(x,GROUND-5,'#ffdc95',5);
+    beep(460,620,.09,.018);
+    return false;
+  });
+  updateAdventure(dt);
+  for (const spark of sparks) {
+    spark.life -= dt;
+    spark.x += spark.vx*dt;
+    spark.y += spark.vy*dt;
+    spark.vy += 205*dt;
+  }
+  sparks = sparks.filter(s => s.life > 0);
+  arcs = arcs.filter(arc => (arc.life -= dt) > 0);
+
+  if (!hero.hp) {
+    panel('lost','The pass falls','You defeated '+kills+' enemies and reached wave '+(wave+1)+'.','Try again');
+  } else if (phase === 'combat' && spawn === pack.length && !mobs.length) {
+    if (wave === gates.length-1) {
+      panel('won','The gate holds','You reached the Ember Gate. '+kills+' enemies defeated. Dawn comes to Emberpass.','Play again');
+      beep(330,880,.42);
+    } else {
+      panel('upgrade','Watchfire','Recover '+(adventure.healer.joined ? '5' : '3')+' health, repair equipped armor, and choose an upgrade.',
+        '1 · Burst relay · Extra attacks or faster beam ticks',
+        '2 · Scatter lens · Wider attacks or extra bolts');
+      byId('third').textContent = '3 · Bulwark cell · '+(hero.guardMax+2)+' energy · longer guard, more blocks';
+      beep(230,500,.2);
+    }
+  }
+  updateHud();
+}
+
+const hudNodes = ['life','wave','gear','notice'].map(byId);
+function updateHud() {
+  const remaining = mobs.length+packs[wave].length-spawn;
+  const status = phase === 'combat' ? ' · '+remaining+' left' : ' · '+places[wave];
+  const texts = [
+    'Health '+hero.hp+'/'+hero.max,
+    'Wave '+(wave+1)+'/'+gates.length+status,
+    weapons[hero.weapon].name+' · '+adventure.coins+' coin · '+Object.values(adventure.pack).reduce((total,count) => total+count,0)+' salvage'
+      +(hero.weapon === 'beam' ? ' · '+(hero.beamLocked ? 'Cooling ' : 'Heat ')+Math.round(hero.beamHeat*100)+'%'
+        : hero.weapon === 'mine' ? ' · '+mines.length+'/3 mines' : '')
+      +(hero.weapon === 'moonring' && moonrings.length ? ' · '+moonrings.length+' in flight' : '')
+      +(adventure.dog.joined ? ' · '+(adventure.dog.target ? 'Bramble attacking' : adventure.dog.cooldown > 0 ? 'Bramble '+Math.ceil(adventure.dog.cooldown)+'s' : 'Q Bramble ready') : ''),
+    [noticeTime > 0 ? notice : '',pickupHint].filter(Boolean).join('  ·  ')
+  ];
+  hudNodes.forEach((node,i) => {
+    if (node.textContent !== texts[i]) node.textContent = texts[i];
+  });
+  touchGuard.setAttribute('aria-pressed',String(guardLatched));
+  const fraction = hero.guardEnergy/hero.guardMax;
+  byId('shieldText').textContent = (hero.guardCooling ? (fraction === 1 ? 'Release guard' : 'Recharging') : 'Shield')+' '+Math.round(fraction*100)+'%';
+  byId('shieldBar').style.width = fraction*100+'%';
+  byId('shieldBar').style.background = fraction < .33 ? '#fbad66' : '#70dbc8';
+  const armorLabel = byId('armorText');
+  armorLabel.hidden = hero.armor === 'clothes';
+  armorLabel.textContent = 'Armor '+adventure.armor.get(hero.armor)+'/'+armors[hero.armor].points;
+  const warmthLabel = byId('warmthText');
+  warmthLabel.hidden = hero.x < coldRoad && hero.warmth >= 100;
+  warmthLabel.textContent = 'Warmth '+Math.ceil(hero.warmth)+'%';
+  warmthLabel.style.color = hero.warmth < 25 ? '#a9dbfa' : '';
+  byId('bar').style.width = (hero.hp/hero.max*100)+'%';
+}
+
+function polygon(points,color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0],points[0][1]);
+  for (const [x,y] of points.slice(1)) ctx.lineTo(x,y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function ridge(offset,base,step,height,color,seed) {
+  const start = Math.floor(offset/step);
+  const points = [[-step,H]];
+  for (let i=start-1; i<=start+Math.ceil(W/step)+1; i++) {
+    const x = Math.floor(i*step-offset);
+    points.push([x,base-Math.floor(hash(i+seed)*height/3)*3]);
+  }
+  points.push([W+step,H]);
+  polygon(points,color);
+}
+
+function pine(x,y,h,color) {
+  pixel(x-1,y-h,3,h,color);
+  for (let j=0; j<5; j++) {
+    const width = 2+(j+1)*Math.round(h/20);
+    const top = y-h+Math.round(j*h/6);
+    polygon([[x,top-5],[x-width,top+h/4],[x-2,top+h/4-1],[x+width,top+h/4]],color);
+  }
+}
+
+function drawDistantRuins(view) {
+  const offset = view*.27;
+  for (const [world,height,width] of [[136,33,48],[460,43,63],[666,27,40],[910,58,74],[1280,43,77],[1480,66,93]]) {
+    const x = Math.round(world-offset);
+    if (x < -90 || x > W+90) continue;
+    const y = 221-height;
+    const stone = '#443549';
+    pixel(x-width/2,y+12,width,height,stone);
+    for (const side of [-1,1]) {
+      const tower = x+side*(width/2-5);
+      pixel(tower-6,y,12,height+10,stone);
+      for (let i=0;i<3;i++) pixel(tower-6+i*5,y-4,3,5,stone);
+      pixel(tower-5,y+7,1,height,'#564155');
+      pixel(tower+2,y+12,2,6,'#342b43');
+    }
+    for (let i=0;i<width-10;i+=9) {
+      pixel(x-width/2+6+i,y+9,5,4,stone);
+      if (i%2===0) pixel(x-width/2+7+i,y+21,2,6,'#342b43');
+    }
+    pixel(x-5,221-15,10,15,'#352d45');
+    pixel(x-3,221-18,6,4,'#352d45');
+  }
+}
+
+function drawMist(view) {
+  ctx.globalAlpha = .22;
+  for (let i=0;i<9;i++) {
+    const loop = W+160;
+    const x = ((hash(i+740)*loop-view*.41+clock*(1.6+i%3))%loop+loop)%loop-120;
+    const y = 184+hash(i+810)*49;
+    const length = 36+hash(i+550)*62;
+    pixel(x,y,length,1,'#b48b9a');
+    pixel(x+12,y+3,length*.67,1,'#927791');
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawRoadEdges(view) {
+  const start = Math.floor(view/13);
+  for (let i=start-1;i<start+W/13+2;i++) {
+    const x = Math.round(i*13-view+hash(i+647)*5);
+    const variation = hash(i+402);
+    if (variation < .28) {
+      const sway = Math.round(Math.sin(clock*3+i)*2);
+      const grass = i%3 ? '#80655e' : '#a37d63';
+      pixel(x,GROUND-3,1,3,grass);
+      pixel(x-1+sway,GROUND-6,1,4,grass);
+      pixel(x+2+sway,GROUND-5,1,3,'#65585c');
+      pixel(x+3,GROUND-2,2,1,'#af8564');
+    } else if (variation < .51) {
+      pixel(x,GROUND+1,5,2,'#483849');
+      pixel(x+1,GROUND,3,1,'#b88d76');
+    } else if (variation > .83) {
+      pixel(x,GROUND-2,6,2,'#574554');
+      pixel(x+i%3,GROUND-3,2,1,'#9d7771');
+    }
+    pixel(x,GROUND+10+Math.round(variation*27),1+(i%3+3)%3,1,'#765263');
+  }
+}
+
+function drawFire(x,y,scale,banked=false) {
+  if (x < -50 || x > W+50) return;
+  const flicker = Math.sin(clock*17+x)*1.6+Math.sin(clock*31+x)*.8;
+  const height = (banked ? 8 : 15)+flicker;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.scale(scale,scale);
+  ctx.globalAlpha = banked ? .09 : .16;
+  polygon([[-33,2],[-21,-20],[0,-25],[21,-20],[33,2],[18,6],[-18,6]],'#e98a51');
+  ctx.globalAlpha = 1;
+  pixel(-8,-3,5,3,'#4b3744');
+  pixel(3,-3,5,3,'#4b3744');
+  pixel(-6,-3,12,2,'#a95245');
+  polygon([[-7,-2],[-6,-8],[-4,-height*.64],[-2,-6],[.5,-height],[3,-height*.56],[5,-height*.72],[7,-3],[5,0],[-5,0]],'#bf5b49');
+  polygon([[-5,-2],[-4,-7],[-2,-4],[1,-height*.80],[3,-5],[5,-6],[5,-1]],'#f29459');
+  polygon([[-3,-1],[-2,-5],[0,-3],[1,-height*.51],[3,-3],[3,-1]],'#ffe5a1');
+  for (let i=0;i<11;i++) {
+    const life = (clock*(.82+(i%3)*.16)+hash(i+380))%1;
+    const dx = Math.sin(i*2.4+life*4)*(1+life*11)+life*8;
+    ctx.globalAlpha = (1-life)*(banked ? .42 : .9);
+    pixel(dx,-height*.51-life*(17+i%5*3),i%4===0 ? 2 : 1,1,i%2 ? '#ffc278' : '#df754f');
+  }
+  for (let i=0;i<4;i++) {
+    const lift = (clock*.42+i*.25)%1;
+    ctx.globalAlpha = (1-lift)*.19;
+    pixel(lift*14-Math.sin(lift*6)*4,-height-lift*21,3+lift*9,2+lift*3,'#a89096');
+  }
+  ctx.restore();
+}
+
+function scenery(view) {
+  pixel(0,0,W,H,'#29233f');
+  pixel(0,50,W,80,'#322945');
+  pixel(0,100,W,60,'#44314d');
+  pixel(0,135,W,50,'#533a50');
+  for (let i=0;i<57;i++) {
+    const x = (hash(i)*W - view*.035 + W*2)%W;
+    const y = 9+hash(i+77)*105;
+    pixel(x,y,i%11===0 ? 2 : 1,1,i%5===0 ? '#e8ac8e' : '#8b6d90');
+  }
+  const moon = Math.round(365-view*.045);
+  for (let dy=-28; dy<=28; dy+=2) {
+    const radius = Math.round(Math.sqrt(29*29-dy*dy));
+    pixel(moon-radius,63+dy,radius*2,2,dy>14 ? '#e39579' : dy>2 ? '#f1af86' : '#f7c898');
+  }
+  pixel(moon-22,65,31,2,'#de927b');
+  pixel(moon-19,73,46,2,'#e39a80');
+  pixel(moon-9,82,26,2,'#d78777');
+  ridge(view*.13,199,33,62,'#62465b',207);
+  ridge(view*.21,218,27,68,'#4b3b58',82);
+  drawDistantRuins(view);
+  ridge(view*.32,245,18,65,'#382d49',24);
+  drawMist(view);
+  for (let i=Math.floor(view*.46/28)-1;i<Math.floor((view*.46+W)/28)+2;i++) {
+    pine(Math.round(i*28-view*.46+hash(i+4)*15),237,19+hash(i+3)*33,'#32283f');
+  }
+  for (let i=Math.floor(view*.7/65)-1;i<Math.floor((view*.7+W)/65)+2;i++) {
+    pine(Math.round(i*65-view*.7+hash(i+19)*24),250,32+hash(i+20)*28,'#241e34');
+  }
+
+  for (let i=0;i<gates.length;i++) {
+    const x = gates[i]-view;
+    if (x < -120 || x > W+120) continue;
+    const base = i === 4 ? 71 : 108+i*4;
+    const width = i === 4 ? 34 : 22;
+    const distance = i === 4 ? 52 : 41;
+    for (const side of [-1,1]) {
+      const pillar = x+side*distance-width/2;
+      pixel(pillar,base,width,GROUND-base,'#45344b');
+      pixel(pillar,base,4,GROUND-base,'#5a4356');
+      for (let y=base+8; y<GROUND; y+=9) {
+        pixel(pillar+1,y,width-2,1,'#392c43');
+        pixel(pillar+5+Math.floor(hash(y+i)*10),y-5,1,5,'#392c43');
+      }
+      for (let j=0;j<width;j+=8) pixel(pillar+j,base-5,5,5,'#524052');
+      pixel(pillar+width-5,base+9,2,18,'#38596a');
+      pixel(pillar+width-5,base+9,2,5,'#54a39b');
+    }
+    if (i === 4) {
+      pixel(x-36,86,72,11,'#45344b');
+      pixel(x-36,86,72,2,'#69495a');
+      pixel(x-6,95,12,24,'#9e4f62');
+      pixel(x-3,101,6,11,'#dc9073');
+    }
+    const banked = mode !== 'title' && i < wave;
+    pixel(x-5,GROUND-4,10,3,'#8e6a55');
+    pixel(x-2,GROUND-13,4,10,'#604458');
+    drawFire(x,GROUND-5,.92,banked);
+  }
+
+  pixel(0,GROUND,W,H-GROUND,'#211925');
+  pixel(0,GROUND,W,5,'#745057');
+  pixel(0,GROUND+5,W,11,'#4e3547');
+  pixel(0,GROUND+16,W,17,'#342634');
+  for (let i=Math.floor(view/11)-1;i<Math.floor((view+W)/11)+2;i++) {
+    const x = Math.round(i*11-view);
+    pixel(x,GROUND+2,4+Math.floor(hash(i)*8),2,i%2 ? '#ab735e' : '#6e585b');
+    pixel(x+Math.floor(hash(i+2)*5),GROUND+7+Math.floor(hash(i+6)*27),3+Math.floor(hash(i+1)*8),2,'#5b3b49');
+    if (i%4===0) {
+      pixel(x+3,GROUND-3,5,3,'#9b745c');
+      pixel(x+4,GROUND-5,2,2,'#75644f');
+    }
+    if (i%9===0) {
+      pixel(x+7,GROUND-8,1,7,'#85705d');
+      pixel(x+9,GROUND-5,1,5,'#85705d');
+    }
+  }
+  drawRoadEdges(view);
+}
+
+const ranger = [
+  '..........DDDDDD......',
+  '.........DDhhhhhD.....',
+  '........DDhhhhhhhD....',
+  '........DhhHhhhHhDD...',
+  '.......DDhhhDDssSSD...',
+  '.......DhhdssSSSSSD...',
+  '.......DhhdssSESDSD...',
+  '.......DhddssSSSSSSD..',
+  '.......DhddsSSSSSSSD..',
+  '.......DhdhssbsSSSD...',
+  '......DDhdhhdBBBBBD...',
+  '......DDhdhhhbsBBD....',
+  '.....DggGhhdhsBBD.....',
+  '....DgcGGGhddslLD.....',
+  '....DgGGGgGgGllVLD....',
+  '...DggGGgggGGlVATAD...',
+  '...DgcGGgggGgllTaAAD..',
+  '...DggGgGGggglTDaTSSD.',
+  '..DggGGgGgggLlLD.aSD..',
+  '..DgcGggGGgglLlLD.....',
+  '..DgGGggGggDbBBBD.....',
+  '.DggGggGGgglLDlLD.....',
+  '.DggGgGGgDdlLDlLD.....',
+  '.DgGGgDddD..dlD.......',
+  '.DDgDD.ddD..dlD.......',
+  '..DDDD.ddD..dlD.......',
+  '.......ddD..dAD.......',
+  '......DDdD..DddD......',
+  '......DDDD..DDDD......'
+];
+const rangerColors = {
+  D:'#251e27', d:'#47353b', h:'#5e463e', H:'#8b6954',
+  s:'#bd7e63', S:'#efba93', E:'#302329', b:'#765144', B:'#a6795a',
+  g:'#3a574e', G:'#668864', c:'#95a879',
+  l:'#795340', L:'#a47955', a:'#73504a', A:'#a78265', V:'#e0ba74', T:'#879999'
+};
+function silhouette(x,y,width=24) {
+  ctx.globalAlpha = .3;
+  pixel(x-width/2,y-2,width,3,'#140e1e');
+  ctx.globalAlpha = 1;
+}
+
+function drawOrcBody(enemy,x,feet,lean) {
+  const {type,size,facing,skin,coat} = enemy;
+  const brute = type === 'brute';
+  const chief = type === 'chief';
+  const hood = type === 'marksman';
+  const scout = type === 'skirmisher';
+  const runt = type === 'scrapling';
+  const heavy = brute || chief || type === 'guard';
+  const metal = chief ? '#af8862' : scout ? '#698b91' : '#85818a';
+  const ink = '#302534';
+  const shadow = '#52604a';
+  const stride = enemy.moving && enemy.grounded ? Math.sin(clock*(runt ? 22 : 15)+enemy.x*.035) : 0;
+  const lift = enemy.grounded ? 0 : 2;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(feet));
+  ctx.scale(facing*size,size);
+
+  // Bent knees and offset boots give the profile a planted, forward-weighted stance.
+  function leg(hip,step,back) {
+    const knee = hip+2+step*2;
+    const boot = hip-2+step*4;
+    const sole = -lift-(enemy.grounded ? Math.max(0,step)*2 : back ? 3 : 0);
+    polygon([[hip-3,-12],[hip+3,-12],[knee+2,-7],[boot+1,sole-2],[boot+4,sole-2],[boot+5,sole],[boot-3,sole],[boot-2,-4],[knee-2,-7]],back ? ink : '#59444a');
+    polygon([[knee-1,-7],[knee+2,-7],[boot+1,sole-2],[boot-1,sole-2]],back ? '#473748' : metal);
+  }
+  leg(-4,-stride,true);
+  leg(3,stride,false);
+  const breath = !enemy.moving && enemy.grounded && enemy.wind <= 0 && Math.sin(clock*3.2+enemy.x) > .45 ? 1 : 0;
+  ctx.translate(lean*facing/size,-Math.abs(stride)+(runt ? 2 : 0)-breath);
+  if (hood || scout || chief) {
+    const hem = Math.round(stride*2);
+    polygon([[-1,-24],[-7,-22],[-9,-15],[-13+hem,-5],[-8+hem,-7],[-7+hem,-5],[-2,-13],[3,-18]],hood ? '#4d4059' : coat);
+    polygon([[-6,-20],[-8,-13],[-11+hem,-7],[-7,-11]],hood ? '#82687c' : '#ac8172');
+  }
+  const width = brute ? 4 : heavy ? 2 : runt ? -2 : 0;
+  polygon([[-8-width,-18],[-6-width,-22],[0,-24],[6,-22],[8,-18],[5,-13],[4,-8],[-2,-9],[-7,-8],[-5,-13]],ink);
+  polygon([[-6-width,-19],[-4,-22],[2,-23],[6,-20],[5,-16],[2,-11],[-4,-11],[-5,-16]],coat);
+  polygon([[-4,-21],[-2,-22],[4,-13],[1,-12]],'#b78c69');
+  polygon([[-5,-13],[4,-14],[4,-12],[-5,-11]],'#49343b');
+  pixel(0,-14,3,2,'#d6ae76');
+
+  // A low brow, projecting nose and underbite define the face at game resolution.
+  ctx.save();
+  ctx.translate(runt ? 3 : 1,brute ? 1 : 0);
+  polygon([[-5,-23],[-5,-28],[-2,-31],[4,-32],[8,-30],[9,-27],[12,-24],[10,-23],[11,-21],[8,-19],[3,-19],[-1,-22]],ink);
+  polygon([[-4,-27],[-1,-30],[4,-31],[7,-29],[8,-26],[11,-24],[8,-23],[10,-22],[8,-20],[3,-20],[0,-23],[-3,-23]],skin);
+  polygon([[-3,-27],[-10,-30],[-7,-25],[-3,-23],[0,-24]],shadow);
+  polygon([[-8,-28],[-3,-26],[-2,-25]],'#cab887');
+  polygon([[1,-27],[7,-28],[8,-27],[6,-25],[3,-25]],ink);
+  pixel(5,-26,2,1,scout ? '#93fff0' : '#ffd38a');
+  polygon([[1,-24],[4,-23],[7,-23],[5,-21],[2,-21]],shadow);
+  polygon([[7,-21],[8,-25],[9,-21]],'#f7dfaa');
+  if (hood) {
+    polygon([[-9,-23],[-6,-28],[-6,-32],[-1,-34],[5,-33],[9,-29],[4,-30],[0,-28],[-2,-23],[-6,-21]],'#42374d');
+    polygon([[-6,-30],[-2,-33],[4,-32],[7,-30],[1,-31]],'#948299');
+    pixel(4,-27,5,1,'#ffb161');
+  } else if (heavy) {
+    polygon([[-6,-26],[-6,-30],[-2,-33],[4,-33],[8,-30],[9,-28],[3,-29],[-1,-27],[-2,-24]],'#494252');
+    polygon([[-5,-30],[-1,-32],[4,-32],[7,-30],[1,-31]],metal);
+    if (chief || brute) {
+      polygon([[-3,-29],[-7,-31],[-10,-37],[-10,-31],[-7,-27],[-4,-26]],'#d6bf92');
+      if (chief) polygon([[3,-32],[6,-34],[8,-38],[8,-33],[6,-30]],'#f0d1a0');
+    }
+  } else if (scout) {
+    polygon([[-6,-26],[-5,-30],[-1,-33],[6,-31],[7,-29],[1,-30]],'#3e7580');
+    pixel(3,-28,6,2,'#91dbd4');
+  } else {
+    polygon([[-5,-27],[-5,-31],[-2,-31],[-3,-35],[1,-33],[2,-35],[6,-32],[7,-30],[2,-31],[-1,-28]],runt ? '#915f49' : '#4b3944');
+  }
+  ctx.restore();
+
+  // The near shoulder overlaps the neck and leads into a bent weapon arm.
+  polygon([[-7-width,-20],[-4,-21],[-1,-18],[-2,-15],[2,-13],[7,-16],[9,-14],[3,-10],[-1,-10],[-7,-14]],shadow);
+  polygon([[-4,-18],[-1,-18],[-2,-15],[1,-13],[-1,-12],[-5,-15]],skin);
+  polygon([[1,-13],[4,-15],[6,-12],[3,-10]],metal);
+  pixel(6,-16,3,3,skin);
+  if (heavy || scout) {
+    polygon([[-10-width,-18],[-8-width,-23],[-4,-25],[0,-23],[1,-19],[-3,-17]],'#454353');
+    polygon([[-9-width,-20],[-7-width,-23],[-4,-24],[-1,-22],[-3,-21]],metal);
+    if (brute || chief) polygon([[-9,-22],[-11,-28],[-6,-23]],'#e5c99e');
+  }
+  if (enemy.flash > 0) {
+    polygon([[-6,-23],[-3,-24],[0,-22],[-4,-22]],'#ffe1a2');
+    pixel(4,-25,4,2,'#fff0c1');
+    pixel(1,-14,3,2,'#ffe1a2');
+  }
+  ctx.restore();
+}
+
+function drawRanger(x,y) {
+  const walking = hero.moving && hero.grounded;
+  const stride = walking ? Math.sin(clock*23) : 0;
+  const bob = walking ? -Math.abs(stride)*2 : 0;
+  const recoil = Math.max(0,hero.muzzle)/.12;
+  const bracing = guardActive();
+  const lean = (walking ? 2*hero.moving*hero.facing : 0)-3*recoil-2*chargeLevel()+(bracing ? 2 : 0);
+  const dip = hero.grounded ? Number(bracing) : 1;
+
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.scale(hero.facing,hero.crouching ? .49 : 1);
+  ctx.globalAlpha = hero.inv > 0 && Math.floor(hero.inv*18)%2 ? .55 : 1;
+  for (let row=0; row<ranger.length; row++) {
+    const torso = clamp((23-row)/12,0,1);
+    const nextTorso = clamp((22-row)/12,0,1);
+    const offsetX = Math.round(torso*lean);
+    const offsetY = Math.round(torso*(bob+dip));
+    const height = Math.max(1,1+Math.round(nextTorso*(bob+dip))-offsetY);
+    for (let col=0; col<ranger[row].length; col++) {
+      const color = rangerColors[ranger[row][col]];
+      if (!color || (row >= 15 && row <= 18 && col >= 17)) continue;
+      const boot = row >= 23 && col >= 6;
+      const foot = col < 11 ? stride : -stride;
+      const stepX = boot ? Math.round(foot*3) : 0;
+      const lift = hero.grounded ? Math.round(Math.max(0,foot)*2) : (col < 11 ? 3 : 1);
+      const stepY = boot ? -lift : 0;
+      const cloak = row >= 15 && col < 5 && (walking || !hero.grounded) ?
+        Math.round((stride+.45*Math.sin(clock*12+row*.22))*2) : 0;
+      pixel(col-11+offsetX+stepX+cloak,row-29+offsetY+stepY,1,height,color);
+    }
+  }
+  if (hero.armor === 'hide') {
+    polygon([[-2,-17],[4,-17],[5,-10],[0,-8],[-3,-11]],'#a76546');
+    pixel(-1,-16,1,6,'#d6a170');
+    pixel(2,-12,2,1,'#efc286');
+  } else if (hero.armor === 'brigandine') {
+    polygon([[-4,-17],[-1,-20],[3,-20],[6,-16],[5,-11],[1,-8],[-4,-11]],'#414657');
+    polygon([[-3,-17],[0,-19],[3,-19],[5,-16],[3,-13],[-2,-14]],'#a9a9aa');
+    pixel(-3,-12,7,2,'#757d88');
+    pixel(-1,-10,3,1,'#c6b5a3');
+  }
+  pixel(-7,-12,4,4,'#293b46');
+  pixel(-7,-12,4,1,'#879999');
+  pixel(-7,-11,Math.floor(hero.guardEnergy)+1,1,bracing ? '#a4ffdb' : '#5ea8a0');
+  ctx.restore();
+}
+
+
+function drawRangerRifle(power,flash) {
+  pixel(0,-2,8,4,'#795340');
+  polygon([[-3,-4],[4,-4],[7,-3],[9,-5],[19,-5],[23,-3],[30,-3],[32,-2],[35,-2],
+    [35,2],[31,2],[29,3],[22,3],[18,5],[12,5],[10,8],[6,8],[8,2],[3,2],[1,5],[-3,4]],'#161a26');
+  polygon([[-2,-3],[3,-3],[6,-1],[5,1],[3,2],[0,4],[-2,3]],'#4b4551');
+  pixel(-2,-3,2,7,'#8f7359');
+  pixel(9,-4,10,2,'#717681');
+  pixel(13,-7,8,2,'#343a46');
+  pixel(14,-7,5,1,'#ba965e');
+  pixel(20,-6,1,2,'#d3b079');
+  pixel(9,2,3,3,'#a78265');
+  pixel(8,5,2,2,'#80573b');
+  pixel(12,3,6,2,'#4e5460');
+  pixel(21,-2,11,1,'#82959e');
+  pixel(20,-1,12,3,'#374452');
+  pixel(23,0,1,2,'#171d2a');
+  pixel(26,0,1,2,'#171d2a');
+  pixel(29,0,1,2,'#171d2a');
+  pixel(19,-2,2,5,'#ac8352');
+  pixel(32,-2,3,4,'#555861');
+  pixel(32,-2,1,4,'#ac8352');
+  pixel(12,-2,7,4,'#213738');
+  pixel(12,-1,7,2,'#387377');
+  if (power > 0) pixel(12,-1,Math.ceil(7*power),2,power >= SHIELD_BREAK_CHARGE ? '#d3fff2' : '#80dbc9');
+  if (power > .4 || flash > 0) pixel(34,-1,1,2,'#b9fff2');
+}
+
+function drawNeedleCarbine(length,power,flash) {
+  polygon([[-5,-3],[2,-3],[5,-5],[16,-5],[20,-2],[length,-1],[length,1],[20,1],[16,3],[10,3],[8,7],[4,7],[5,2],[-5,1]],'#17202e');
+  polygon([[-4,-2],[5,-2],[5,0],[-1,1],[-4,2]],'#738991');
+  polygon([[5,-4],[15,-4],[18,-2],[15,1],[6,1]],'#608e98');
+  pixel(17,-1,length-17,2,'#b7d2d3');
+  pixel(20,-2,length-20,1,'#4b7d91');
+  pixel(10,2,3,3,'#384d61');
+  pixel(7,-2,8,2,'#27434c');
+  if (power > 0) pixel(7,-2,Math.ceil(8*power),2,'#a4f5e9');
+  if (flash > 0) pixel(length-2,-1,2,2,'#e4fff7');
+}
+
+function drawForgeRifle(length,power,flash) {
+  polygon([[-6,-5],[0,-5],[5,-3],[8,-7],[18,-7],[22,-5],[length-3,-5],[length,-3],[length,3],[length-4,5],[21,5],[17,7],[12,7],[9,9],[5,9],[6,3],[0,3],[-5,5]],'#251f2d');
+  polygon([[-5,-4],[1,-4],[5,-1],[2,2],[-4,4]],'#7f5649');
+  polygon([[8,-6],[18,-6],[21,-4],[18,5],[11,5],[7,3]],'#804e45');
+  pixel(21,-4,length-23,8,'#5a454c');
+  pixel(22,-5,length-25,2,'#c18866');
+  pixel(21,2,length-24,2,'#a97358');
+  for (let x=24; x<length-6; x+=4) pixel(x,-2,2,4,'#302a37');
+  pixel(length-5,-5,3,10,'#a17360');
+  pixel(length-2,-3,2,6,'#644b50');
+  pixel(11,-4,7,7,'#492e36');
+  pixel(12,-3,5,5,'#a9634d');
+  if (power > 0) pixel(12,-3,5,Math.ceil(5*power),'#ffd288');
+  if (flash > 0) pixel(length-2,-2,2,4,'#ffdab0');
+}
+
+function drawCinderProjector(length,power) {
+  polygon([[-4,-3],[3,-3],[8,-7],[15,-7],[19,-4],[length-4,-5],[length,-3],[length,4],[length-5,5],[14,3],[9,7],[4,7],[6,2],[-4,2]],'#2b202e');
+  pixel(3,-4,10,7,'#67434b');
+  polygon([[8,-7],[14,-7],[17,-4],[15,4],[9,5],[6,1]],'#9f614b');
+  pixel(10,-5,4,8,'#542f39');
+  pixel(10,-4,4,Math.max(1,Math.ceil(power*6)),'#ed994f');
+  pixel(16,-3,length-16,6,'#71505a');
+  pixel(length-6,-4,3,8,'#b97a5a');
+  pixel(length-3,-3,3,2,'#db9766');
+  pixel(length-3,1,3,2,'#db9766');
+}
+
+function drawStormCoil(length,power) {
+  polygon([[-5,-4],[3,-4],[8,-6],[15,-6],[19,-3],[length-4,-4],[length,-2],[length,2],[length-4,4],[15,3],[9,7],[5,7],[6,2],[-5,1]],'#231e38');
+  pixel(-4,-3,9,4,'#646184');
+  pixel(8,-5,8,9,'#655181');
+  pixel(10,-4,5,5,'#b083d6');
+  pixel(16,-1,length-16,2,'#4b4269');
+  for (let x=19;x<length-2;x+=4) {
+    pixel(x,-3,2,6,'#9b85b3');
+    pixel(x,-1,2,2,power > (x-18)/length ? '#edcfff' : '#655183');
+  }
+  pixel(length-3,-3,3,1,'#c8a9e5');
+  pixel(length-3,2,3,1,'#c8a9e5');
+}
+
+function drawRifle(x,y,angle,facing,side,size,power,flash,long=false) {
+  const player = side === 'player';
+  const heavy = player && hero.weapon === 'forge';
+  const fire = player && hero.weapon === 'cinder';
+  const storm = player && hero.weapon === 'storm';
+  const outer = fire ? '#e17846' : storm ? '#aa89fa' : heavy ? '#c58656' : player ? '#4fa9ae' : '#bd604f';
+  const bright = fire ? '#ffd589' : storm ? '#f4e6ff' : heavy ? '#fff0c4' : player ? '#b9fff2' : '#ffd19a';
+  const length = rifleLength(side,long);
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.rotate(angle);
+  ctx.scale(size,facing*size);
+  if (player) {
+    if (hero.weapon === 'needle') drawNeedleCarbine(length,power,flash);
+    else if (heavy) drawForgeRifle(length,power,flash);
+    else if (fire) drawCinderProjector(length,power);
+    else if (storm) drawStormCoil(length,power);
+    else if (hero.weapon === 'mine') drawMinecaster(length,power);
+    else if (hero.weapon === 'beam') drawSunbeamCutter(length,power);
+    else if (hero.weapon === 'moonring') {
+      ctx.translate(8,-2);
+      ctx.rotate(-.65);
+      drawMoonring(power,power >= SHIELD_BREAK_CHARGE);
+    } else if (hero.weapon === 'graveline') drawGraveline(length,power);
+    else if (hero.weapon === 'wardbell') drawWardbell(power);
+    else drawRangerRifle(power,flash);
+  } else {
+    pixel(1,-2,9,4,'#745064');
+    polygon([[3,-3],[8,-3],[10,-5],[19,-5],[22,-2],[length,-2],[length,2],[19,2],[17,4],[10,4],[7,2],[3,2]],'#252638');
+    pixel(8,-4,12,2,'#aa7b7b');
+    pixel(10,2,5,4,'#473348');
+    pixel(8,-2,4,4,'#8ea256');
+    pixel(15,-2,5,3,outer);
+    pixel(23,-1,length-25,2,'#b98681');
+    if (long) {
+      pixel(15,-7,8,2,'#8f725f');
+      pixel(21,-6,3,1,power > .65 ? '#ffd68c' : '#b07667');
+      pixel(length-8,-3,4,5,'#52536d');
+    }
+    pixel(length-2,-2,2,4,outer);
+    if (power > 0 || flash > 0) {
+      pixel(16,-2,Math.max(1,Math.ceil(4*power)),2,bright);
+      pixel(length-2,-2,2,4,bright);
+    }
+  }
+  if (flash > 0) {
+    const reach = 5+9*power;
+    polygon([[length,-2],[length+3,-4-2*power],[length+reach,0],[length+3,4+2*power],[length,2]],outer);
+    pixel(length,0,Math.max(3,reach-2),2,bright);
+  }
+  ctx.restore();
+}
+
+function drawBolt(shot,view) {
+  const power = shot.power;
+  const needle = shot.weapon === 'needle';
+  const fire = shot.weapon === 'cinder';
+  const storm = shot.weapon === 'storm';
+  const forge = shot.weapon === 'forge';
+  const length = Math.min(shot.travel,needle ? 20+12*power : forge ? 9+8*power : shot.side === 'player' ? 11+16*power : shot.speed > 300 ? 22 : 11);
+  const width = needle ? .8+1.6*power : forge ? 3+3*power : shot.side === 'player' ? 1+2.8*power : 1.3;
+  const outer = shot.mod === 'fork' ? '#d6c074' : shot.mod === 'pierce' ? '#a18bff' : needle ? '#719cf6' : forge ? '#ed8952' : shot.side === 'player' ? '#4dcab7' : '#db674f';
+  const inner = shot.mod === 'fork' ? '#fff1bb' : shot.mod === 'pierce' ? '#f0e7ff' : needle ? '#dfedff' : forge ? '#fff0ac' : shot.side === 'player' ? '#d8fff6' : '#ffdfa0';
+  ctx.save();
+  ctx.translate(Math.round(shot.x-view),Math.round(shot.y));
+  ctx.rotate(Math.atan2(shot.dy,shot.dx));
+  if (fire) {
+    const fade = 1-shot.travel/shot.range;
+    const radius = 2+power*1.8+fade;
+    ctx.globalAlpha = .55+.45*fade;
+    polygon([[-Math.min(shot.travel,13),0],[-4,-radius],[1,-radius-1],[radius,0],[0,radius],[-5,2]],'#ee7142');
+    pixel(-2,-1,4,3,'#ffe0a0');
+    for (let i=0;i<4;i++) {
+      const trail = (shot.travel*(.24+i*.06)+i*4)%17;
+      if (trail > shot.travel) continue;
+      ctx.globalAlpha = fade*(1-trail/20);
+      pixel(-trail,Math.sin(trail*.45+i*2)*radius,1+(i%2),1,i%2 ? '#f49e55' : '#ce503f');
+    }
+    ctx.restore();
+    return;
+  }
+  if (storm) {
+    const tail = Math.min(shot.travel,22);
+    const bend = Math.round(Math.sin(shot.travel*.35)*3);
+    polygon([[-tail,1],[-tail*.6,bend-1],[-5,-2],[3,-1],[3,1],[-5,0],[-tail*.6,bend+2]],'#a892fa');
+    pixel(-3,-.5,5,1,'#fff2ff');
+    ctx.restore();
+    return;
+  }
+  if (shot.mod === 'splash' && shot.travel > 6) {
+    ctx.globalAlpha = .35;
+    pixel(-length-5,-width-1,length+6,2*width+2,'#ff915d');
+    ctx.globalAlpha = 1;
+  }
+  if (forge) {
+    polygon([[-length,0],[-length*.6,-width*.65],[-width,-width],[0,-width],[width,0],[0,width],[-width,width],[-length*.6,width*.65]],outer);
+  } else {
+    polygon([[-length,0],[-length*.55,-width],[0,-width],[width,0],[0,width],[-length*.55,width]],outer);
+  }
+  pixel(-length*.68,-Math.max(.5,width*.48),length*.69,Math.max(1,width),inner);
+  ctx.restore();
+}
+
+function drawShield(enemy,x,y) {
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.scale(enemy.facing*enemy.size,enemy.size);
+  const fraction = enemy.shield/enemyTypes[enemy.type].shield;
+  const color = fraction <= .34 ? '#f49467' : fraction <= .67 ? '#e3c677' : '#70bdd8';
+  const bright = enemy.shieldFlash > 0 ? '#d9fbff' : color;
+  ctx.globalAlpha = .58;
+  polygon([[9,-27],[15,-26],[19,-20],[19,-9],[15,-3],[9,-2],[12,-9],[12,-20]],'#275273');
+  ctx.globalAlpha = 1;
+  polygon([[9,-27],[15,-26],[19,-20],[19,-9],[15,-3],[9,-2],[14,-5],[17,-10],[17,-19],[14,-24]],bright);
+  for (let i=0;i<enemyTypes[enemy.type].shield;i++) {
+    pixel(14,-22+i*2,3,1,i<enemy.shield ? color : '#364050');
+  }
+  ctx.restore();
+}
+
+function drawHuman(actor,x,feet,healer=false) {
+  const blade = actor.type === 'reaver';
+  const stride = actor.moving ? Math.sin(clock*21+actor.x*.04) : 0;
+  const ink = '#302a39';
+  const cloth = healer ? '#578784' : actor.coat;
+  const skin = healer ? '#ba856b' : actor.skin;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(feet));
+  const size = healer ? .68 : actor.size;
+  ctx.scale(actor.facing*size,size);
+  for (const side of [-1,1]) {
+    const hip = side*3;
+    const toe = hip+stride*side*5;
+    const lift = Math.max(0,Math.round(stride*side*2));
+    polygon([[hip-2,-12],[hip+2,-12],[hip+3,-7],[toe+1,-3-lift],[toe+4,-2-lift],[toe+4,-lift],[toe-3,-lift],[toe-3,-5-lift]],side < 0 ? '#4d424e' : '#7c6266');
+  }
+  ctx.translate(0,-Math.abs(stride));
+  polygon([[-8,-23],[-4,-27],[4,-26],[8,-21],[7,-16],[5,-11],[-3,-9],[-9,-13]],ink);
+  polygon([[-6,-23],[-3,-26],[3,-24],[6,-21],[5,-14],[2,-12],[-7,-13]],cloth);
+  polygon([[-6,-23],[-4,-24],[4,-15],[2,-14]],'#c3a684');
+  pixel(-6,-14,11,2,'#5d464b');
+  pixel(1,-14,2,2,'#d7a772');
+  polygon([[-6,-24],[-6,-31],[-3,-35],[2,-35],[6,-31],[7,-27],[4,-24],[0,-23]],ink);
+  polygon([[-4,-30],[-2,-33],[2,-33],[5,-30],[6,-27],[3,-25],[0,-25],[-3,-27]],skin);
+  pixel(3,-30,2,1,ink);
+  if (healer) {
+    polygon([[-7,-27],[-7,-33],[-4,-36],[2,-37],[6,-34],[6,-32],[1,-34],[-3,-33],[-4,-26],[-1,-23],[-4,-22]],'#7eb7ad');
+    pixel(-7,-19,7,6,'#d9ba91');
+    pixel(-5,-17,3,1,'#a7535f');
+    pixel(-4,-18,1,3,'#a7535f');
+  } else if (blade) {
+    polygon([[-6,-29],[-5,-34],[-2,-36],[3,-35],[5,-33],[2,-32],[-2,-32],[-3,-29]],'#77737d');
+    pixel(-4,-33,7,2,'#b0a0a0');
+    pixel(1,-27,6,2,'#8e4d52');
+  } else {
+    polygon([[-8,-24],[-7,-33],[-5,-36],[0,-38],[5,-35],[6,-32],[1,-34],[-4,-32],[-4,-26],[-5,-22]],'#4a425f');
+    pixel(1,-28,5,3,'#555061');
+  }
+  polygon([[-5,-22],[-2,-22],[0,-18],[5,-16],[7,-17],[9,-15],[4,-13],[-1,-14],[-6,-17]],'#695464');
+  pixel(6,-17,3,3,skin);
+  if (actor.flash > 0) pixel(1,-29,4,2,'#ffe3a3');
+  ctx.restore();
+}
+
+function drawEnemy(enemy,x) {
+  const feet = GROUND-enemy.y;
+  silhouette(x,GROUND,24*enemy.size);
+
+  const long = enemy.type === 'marksman';
+  const heavy = enemy.type === 'brute';
+  const preparing = enemy.wind > 0;
+  const power = preparing ? 1-enemy.wind/enemyTypes[enemy.type].wind : 0;
+  const recoil = enemy.muzzle > 0 ? enemy.muzzle/(enemy.melee ? MELEE_SWING : .13) : 0;
+  const lean = (enemy.melee ? 4 : 2)*(recoil ? -recoil : power)*enemy.facing;
+  if (enemy.human) drawHuman(enemy,x+lean,feet);
+  else drawOrcBody(enemy,x,feet,lean);
+  if (enemy.shield) drawShield(enemy,x,feet);
+  if (preparing && !enemy.melee) {
+    const y = enemyWeaponY(enemy);
+    const dx = Math.cos(enemy.aim);
+    const dy = Math.sin(enemy.aim);
+    ctx.globalAlpha = .45+.4*power;
+    for (let t=long ? 43 : 31; t<(long ? 137 : 72); t+=long ? 12 : 9) {
+      if (y+dy*t < GROUND) pixel(x+dx*t,y+dy*t,long ? 4 : 2,1,long ? '#ffd290' : '#ffaf7e');
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (enemy.melee) drawMeleeWeapon(enemy,x,enemyWeaponY(enemy),power);
+  else drawRifle(x,enemyWeaponY(enemy),enemy.aim,enemy.facing,'enemy',enemyRifleScale(enemy),power,enemy.muzzle,long);
+  if (enemy.type === 'chief' || enemy.hp < enemy.max) {
+    const width = enemy.type === 'chief' ? 32 : heavy ? 20 : 15;
+    const y = feet-39*enemy.size-4;
+    pixel(x-width/2,y,width,3,'#2e2030');
+    pixel(x-width/2,y,Math.ceil(width*enemy.hp/enemy.max),2,'#ed886c');
+  }
+}
+
+function drawPotion(x,y) {
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  pixel(-2,-8,4,2,'#e9be86');
+  pixel(-3,-6,6,2,'#f8daca');
+  polygon([[-3,-4],[3,-4],[5,0],[5,5],[3,7],[-3,7],[-5,5],[-5,0]],'#472333');
+  polygon([[-3,-1],[3,-1],[4,1],[4,5],[2,6],[-2,6],[-4,5],[-4,1]],'#dd5d67');
+  pixel(-1,0,2,5,'#fff0ce');
+  pixel(-2,2,4,1,'#fff0ce');
+  pixel(-3,0,1,2,'#ff9a96');
+  ctx.restore();
+}
+
+function drawPlatforms(view) {
+  for (const platform of platforms) {
+    const x = Math.round(platform.left-view);
+    const width = platform.right-platform.left;
+    if (x+width < 0 || x > W) continue;
+    const y = GROUND-platform.height;
+    pixel(x+1,y+9,width-2,2,'#252338');
+    for (let i=6; i<width-8; i+=18) {
+      polygon([[x+i,y+4],[x+i+4,y+4],[x+i+12,y+9],[x+i+8,y+9]],'#503f56');
+    }
+    pixel(x,y,width,5,'#383145');
+    pixel(x,y,width,2,'#9e7a66');
+    pixel(x+2,y+2,width-4,1,'#66516a');
+    pixel(x+3,y+1,4,2,'#70b7a5');
+    pixel(x+width-7,y+1,4,2,'#70b7a5');
+  }
+}
+
+function drawMeleeWeapon(enemy,x,y,power) {
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.scale(enemy.facing*enemy.size,enemy.size);
+  const heavy = enemy.type === 'brute';
+  const remaining = enemy.muzzle;
+  const windup = heavy ? 1.32 : .9;
+  let angle = -.26-windup*power;
+  if (remaining > MELEE_CONTACT_LEFT) {
+    const untilContact = (remaining-MELEE_CONTACT_LEFT)/(MELEE_SWING-MELEE_CONTACT_LEFT);
+    angle = (-.26-windup)*untilContact**2;
+  } else if (remaining > 0) {
+    angle = .88*Math.sin((1-remaining/MELEE_CONTACT_LEFT)*Math.PI);
+  }
+  ctx.rotate(angle);
+  pixel(3,-2,8,4,'#926158');
+  if (heavy) {
+    pixel(11,-1,16,2,'#a17a56');
+    polygon([[23,-2],[24,-7],[30,-10],[34,-8],[36,-4],[35,1],[31,4],[28,1],[23,1]],'#565565');
+    polygon([[30,-10],[34,-8],[36,-4],[35,1],[31,4],[32,1],[33,-3],[32,-7]],'#e6cda9');
+    pixel(25,-2,4,2,'#ec8a5c');
+  } else {
+    pixel(11,-3,2,6,'#c39766');
+    polygon([[13,-2],[20,-2],[25,0],[20,2],[13,2]],'#d4bd9e');
+    pixel(14,-1,7,1,'#fff0c8');
+  }
+  if (remaining > 0 && remaining < MELEE_CONTACT_LEFT+.04) {
+    const tip = heavy ? 43 : 33;
+    ctx.globalAlpha = .68*Math.min(1,remaining/.09);
+    polygon([[18,-6],[tip,-4],[tip-3,-1],[18,-3]],'#f39d69');
+  }
+  ctx.restore();
+}
+
+function drawGuard(x,y) {
+  if (!guardActive()) return;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.rotate(hero.aim);
+  const angles = Array.from({length:11},(_,i) => -GUARD_HALF_ANGLE+2*GUARD_HALF_ANGLE*i/10);
+  const curve = radius => angles.map(angle => [Math.cos(angle)*radius,Math.sin(angle)*radius]);
+  const glowing = hero.guardFlash > 0;
+  ctx.globalAlpha = glowing ? .58 : .30;
+  polygon([...curve(GUARD_RADIUS+2),...curve(GUARD_RADIUS-8).reverse()],'#3e96a4');
+  ctx.globalAlpha = 1;
+  polygon([...curve(GUARD_RADIUS+1),...curve(GUARD_RADIUS-1).reverse()],glowing ? '#e1fff1' : hero.guardEnergy/hero.guardMax < .33 ? '#fbad66' : '#75e8d0');
+  const cells = Math.floor(hero.guardEnergy);
+  for (let i=0; i<hero.guardMax; i++) {
+    const angle = (i/(hero.guardMax-1)-.5)*1.45;
+    const x = Math.cos(angle)*(GUARD_RADIUS-4);
+    const y = Math.sin(angle)*(GUARD_RADIUS-4);
+    pixel(x-1,y-1,3,3,i < cells ? '#d5fff0' : '#35566d');
+  }
+  ctx.restore();
+}
+
+function drawBramble(dog,view) {
+  const x = dog.x-view;
+  if (x < -25 || x > W+25) return;
+  const stride = dog.moving ? Math.sin(clock*(dog.target ? 30 : 23)) : 0;
+  const bob = dog.moving ? Math.round(Math.abs(stride)*2) : 0;
+  const wag = Math.round(Math.sin(clock*(dog.joined ? 15 : 6))*3);
+  const dark = '#352935';
+  const tan = '#c89162';
+  const cream = '#f1d29e';
+  silhouette(x,GROUND,17);
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(GROUND-dog.y)-bob);
+  ctx.scale(dog.facing*.53,.53);
+  if (dog.target) ctx.rotate(.07+stride*.07);
+
+  // far legs, feathered tail, then the near-side coat and legs
+  polygon([[-11,-9],[-7,-9],[-8+stride*4,-2],[-6+stride*4,0],[-11+stride*4,0]],'#684b48');
+  polygon([[7,-11],[11,-10],[11-stride*4,-2],[13-stride*4,0],[8-stride*4,0]],'#684b48');
+  polygon([[-12,-9],[-18,-12],[-23,-18-wag],[-22,-21-wag],[-17,-17-wag],[-11,-14],[-8,-13]],dark);
+  polygon([[-13,-11],[-18,-13],[-22,-19-wag],[-17,-16-wag],[-10,-13]],'#a06b55');
+  polygon([[-15,-10],[-14,-15],[-8,-17],[3,-16],[6,-18],[10,-17],[13,-11],[11,-6],[4,-5],[-3,-7],[-10,-5]],dark);
+  polygon([[-14,-11],[-12,-15],[-7,-16],[3,-15],[7,-17],[10,-13],[11,-8],[6,-6],[0,-7],[-7,-8],[-11,-7]],tan);
+  polygon([[-13,-13],[-10,-16],[-4,-16],[4,-14],[6,-12],[0,-11],[-5,-12],[-9,-11]],'#6d4a49');
+  polygon([[5,-15],[9,-15],[11,-9],[8,-7],[4,-8],[6,-11]],cream);
+  polygon([[-12,-10],[-7,-10],[-6,-6],[-11-stride*4,-2],[-8-stride*4,-1],[-8-stride*4,1],[-14-stride*4,1],[-14-stride*3,-3]],dark);
+  polygon([[-11,-9],[-8,-9],[-7,-6],[-12-stride*4,-2],[-9-stride*4,0],[-13-stride*4,0],[-13-stride*3,-3]],tan);
+  polygon([[5,-12],[10,-12],[10+stride*3,-3],[13+stride*4,-2],[13+stride*4,1],[7+stride*4,1],[5+stride*3,-4]],dark);
+  polygon([[6,-11],[9,-11],[9+stride*3,-3],[12+stride*4,-1],[12+stride*4,0],[8+stride*4,0],[6+stride*3,-4]],cream);
+
+  const sniff = !dog.moving && Math.sin(clock*2.6) > .45;
+  ctx.translate(sniff ? 1 : 0,sniff ? 2 : 0);
+  // Tapered snout, black nose and two upright shepherd ears.
+  polygon([[5,-15],[6,-23],[7,-29],[11,-25],[13,-30],[16,-26],[16,-21],[19,-18],[23,-17],[23,-14],[19,-12],[13,-12],[10,-10]],dark);
+  polygon([[7,-20],[8,-26],[11,-23],[13,-27],[15,-25],[15,-21],[17,-18],[21,-16],[20,-14],[15,-13],[11,-12],[8,-15]],tan);
+  polygon([[8,-25],[11,-23],[9,-21]],'#dc9b88');
+  polygon([[13,-26],[15,-24],[14,-22]],'#ac705f');
+  polygon([[14,-19],[18,-17],[21,-16],[20,-14],[15,-14],[13,-16]],cream);
+  pixel(21,-17,2,2,dark);
+  pixel(14,-21,2,1,'#29232e');
+  pixel(14,-21,1,1,'#fbdfac');
+  if (dog.joined) {
+    polygon([[7,-16],[9,-16],[13,-12],[11,-10]],'#64b9a9');
+    pixel(11,-12,2,3,'#f2c879');
+  }
+  ctx.restore();
+}
+
+function drawMerchant(x,trader) {
+  ctx.save();
+  ctx.translate(Math.round(x),GROUND);
+  ctx.scale(.61,.61);
+  const dark = '#322838';
+  const leather = trader.treatment ? trader.awning : '#975f4c';
+  const gold = '#e6b877';
+  polygon([[-8,0],[-7,-16],[-10,-24],[-8,-31],[-4,-34],[5,-33],[10,-28],[11,-20],[8,-15],[8,0],[2,0],[0,-13],[-2,0]],dark);
+  polygon([[-7,-28],[-4,-32],[4,-32],[8,-28],[7,-15],[6,-3],[2,-3],[0,-16],[-3,-3],[-6,-3]],'#665678');
+  polygon([[-5,-30],[5,-29],[4,-24],[6,-10],[-6,-9],[-3,-25]],leather);
+  polygon([[-4,-28],[-2,-28],[-2,-17],[-4,-14]],'#c18a65');
+  pixel(-5,-19,10,2,'#593d44');
+  pixel(1,-19,2,2,gold);
+  polygon([[-7,-30],[-9,-35],[-8,-42],[-5,-45],[2,-46],[7,-43],[8,-37],[6,-32],[2,-29],[-3,-29]],dark);
+  polygon([[-6,-41],[-2,-44],[3,-43],[6,-40],[5,-34],[1,-31],[-4,-33],[-6,-36]],'#cf9270');
+  polygon([[-8,-40],[-7,-43],[-3,-45],[3,-45],[6,-42],[7,-40],[1,-41],[-4,-39]],'#9a6259');
+  polygon([[-7,-40],[-4,-39],[-5,-32],[-9,-28],[-10,-30],[-8,-35]],'#af7566');
+  pixel(-8,-33,2,1,gold);
+  const blink = (clock+trader.x*.19)%4.5 < .13;
+  pixel(-5,-38,2,blink ? .45 : 1,'#49313e');
+  pixel(1,-38,2,blink ? .45 : 1,'#49313e');
+  pixel(-2,-35,3,1,'#f0b090');
+  polygon([[-8,-28],[-12,-22],[-15,-22],[-17,-23],[-19,-21],[-17,-19],[-11,-18],[-6,-22]],'#c18b70');
+  polygon([[8,-28],[11,-25],[11,-21],[8,-18],[5,-19],[5,-22],[7,-23]],'#c18b70');
+  pixel(8,-23,4,3,'#5c4150');
+  ctx.restore();
+}
+
+function drawLanternHollow(view) {
+  const origin = traders[0].x-view;
+  if (origin < -155 || origin > W+130) return;
+  for (const [offset,width,height] of [[-75,49,35],[78,51,44],[122,31,28]]) {
+    const x = origin+offset;
+    const roof = GROUND-height;
+    pixel(x-width/2,roof,width,height,'#594355');
+    pixel(x-width/2+2,roof+2,width-4,height-2,'#6b505c');
+    polygon([[x-width/2-5,roof+4],[x-7,roof-17],[x+11,roof-15],
+      [x+width/2+6,roof+3]],'#383042');
+    polygon([[x-width/2-5,roof+4],[x-7,roof-17],[x+11,roof-15],
+      [x-width/2,roof+2]],'#a57266');
+    pixel(x-3,GROUND-18,10,18,'#443642');
+    pixel(x-width/2+6,roof+11,8,8,'#3f3240');
+    pixel(x-width/2+7,roof+12,6,6,'#edaa68');
+    pixel(x-width/2+10,roof+12,1,6,'#925c55');
+  }
+  pixel(origin-61,GROUND-22,2,22,'#705050');
+  pixel(origin-88,GROUND-27,49,11,'#4e3642');
+  ctx.fillStyle = '#f3d3a1';
+  ctx.font = '7px Georgia';
+  ctx.fillText('Lantern Hollow',origin-85,GROUND-19);
+
+  const x = cacheX-view;
+  const y = GROUND-10;
+  pixel(x-9,y,18,10,'#4c3541');
+  pixel(x-8,y+1,16,7,'#997055');
+  pixel(x-6,y+1,2,8,'#cc9f6b');
+  pixel(x+4,y+1,2,8,'#cc9f6b');
+  if (adventure.cacheOpened) {
+    pixel(x-9,y-6,18,5,'#78534b');
+    pixel(x-7,y,14,4,'#342a37');
+  } else {
+    pixel(x-9,y-3,18,4,'#be9466');
+    pixel(x-2,y,4,4,'#ffdc8e');
+  }
+}
+
+function drawTradingPost(trader,view) {
+  const x = trader.x-view;
+  if (x <= -65 || x >= W+65) return;
+  pixel(x-38,GROUND-40,3,40,'#765746');
+  pixel(x+36,GROUND-40,3,40,'#765746');
+  polygon([[x-43,GROUND-39],[x-28,GROUND-55],[x+28,GROUND-55],[x+44,GROUND-39]],trader.awning);
+  polygon([[x-43,GROUND-39],[x-16,GROUND-43],[x+28,GROUND-55],[x+44,GROUND-39]],'#6c5969');
+  pixel(x-5,GROUND-39,11,5,'#453142');
+  pixel(x-1,GROUND-34,3,5,'#f5bd71');
+  drawMerchant(x+13,trader);
+  pixel(x-28,GROUND-12,34,4,'#ae8162');
+  pixel(x-25,GROUND-8,3,8,'#715145');
+  pixel(x+1,GROUND-8,3,8,'#715145');
+  pixel(x-22,GROUND-15,17,2,'#a9a4ac');
+  pixel(x-19,GROUND-15,5,4,'#726077');
+  if (trader.treatment) {
+    pixel(x-35,GROUND-25,66,9,'#443548');
+    ctx.fillStyle = '#f3d3a1';
+    ctx.font = '7px Georgia';
+    ctx.textAlign = 'center';
+    ctx.fillText(trader.place,x-2,GROUND-18);
+    ctx.textAlign = 'start';
+    pixel(x+28,GROUND-12,10,12,'#66505d');
+    pixel(x+29,GROUND-12,8,3,'#b59a83');
+    pixel(x+32,GROUND-9,2,6,'#e3b68d');
+  }
+}
+
+function drawCourierSatchel(view) {
+  if (!['unheard','accepted'].includes(adventure.delivery)) return;
+  const x = courierSatchel.x-view;
+  if (x < -15 || x > W+15) return;
+  const y = GROUND-courierSatchel.y;
+  polygon([[x-8,y-1],[x-9,y-10],[x-6,y-14],[x+6,y-13],[x+9,y-9],[x+8,y-1]],'#282332');
+  polygon([[x-7,y-2],[x-7,y-10],[x-4,y-12],[x+6,y-11],[x+7,y-8],[x+6,y-2]],'#9d6552');
+  polygon([[x-6,y-11],[x+5,y-11],[x+5,y-7],[x,y-5],[x-6,y-8]],'#d6a578');
+  pixel(x-1,y-8,2,4,'#78c9c4');
+  pixel(x-6,y-1,13,1,'#ba8c72');
+}
+
+function drawAdventure(view) {
+  drawLanternHollow(view);
+  drawCourierSatchel(view);
+  for (const {x,kind} of adventure.loot) {
+    if (x < view-10 || x > view+W+10) continue;
+    const y = GROUND-4+Math.sin(clock*4+x)*1.5;
+    const color = kind === 'parts' ? '#81d4d4' : kind === 'buckles' ? '#c399cf' : '#d9a661';
+    polygon([[x-view-5,y],[x-view-2,y-5],[x-view+3,y-5],[x-view+5,y],[x-view+2,y+2],[x-view-3,y+2]],'#372b39');
+    pixel(x-view-2,y-4,5,3,color);
+    pixel(x-view-2,y-4,2,1,'#ffedbb');
+  }
+  for (const trader of traders) {
+    drawTradingPost(trader,view);
+    drawFire(trader.x-view+39,GROUND-6,trader.name === 'Mira' ? .82 : .60);
+  }
+  drawBramble(adventure.dog,view);
+  const healer = adventure.healer;
+  if (healer.x > view-30 && healer.x < view+W+30) {
+    drawHuman(healer,healer.x-view,GROUND-healer.y,true);
+  }
+}
+
+function drawTunnel(view) {
+  const x = tunnelX-view;
+  if (x < -48 || x > W+48) return;
+  const y = GROUND;
+  polygon([[x-37,y],[x-33,y-14],[x-24,y-27],[x-10,y-40],[x+10,y-40],[x+28,y-28],[x+36,y-11],[x+41,y]],'#614957');
+  polygon([[x-23,y],[x-23,y-19],[x-12,y-30],[x+10,y-30],[x+23,y-19],[x+23,y]],'#9c7772');
+  polygon([[x-18,y],[x-18,y-17],[x-9,y-25],[x+7,y-25],[x+18,y-17],[x+18,y]],'#242034');
+  for (const at of [-26,26]) pixel(x+at,y-9,4,9,'#765967');
+  if (mobs.some(enemy => enemy.emerge > 0)) {
+    for (let i=0;i<7;i++) {
+      const drift = (clock*22+i*7)%42;
+      pixel(x-21+drift,y-3-(drift%9),2,1,i%2 ? '#cc9d78' : '#a77b6a');
+    }
+  }
+}
+
+function drawColdAir(view) {
+  if (view+W < coldRoad) return;
+  ctx.globalAlpha = .46;
+  for (let i=0;i<26;i++) {
+    const x = ((hash(i+55)*W-clock*19+W*1000)%W+W)%W;
+    if (x+view < coldRoad) continue;
+    const y = (hash(i+90)*H+clock*(11+i%5))%H;
+    pixel(x,y,i%5===0 ? 2 : 1,1,'#cddef1');
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawArcs(view) {
+  ctx.save();
+  ctx.lineWidth = 1;
+  for (const arc of arcs) {
+    ctx.globalAlpha = arc.life/.16;
+    ctx.strokeStyle = '#e3c4ff';
+    ctx.beginPath();
+    ctx.moveTo(Math.round(arc.x-view),Math.round(arc.y));
+    ctx.lineTo(Math.round(arc.x+(arc.toX-arc.x)*.33-view),Math.round(arc.y+(arc.toY-arc.y)*.33-5));
+    ctx.lineTo(Math.round(arc.x+(arc.toX-arc.x)*.67-view),Math.round(arc.y+(arc.toY-arc.y)*.67+4));
+    ctx.lineTo(Math.round(arc.toX-view),Math.round(arc.toY));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawEmberGlaive(x,y,angle,power) {
+  const swing = glaiveSwing;
+  const progress = swing ? clamp((swing.age-.035)/.17,0,1) : 0;
+  const sweep = swing ? (2*progress-1)*swing.halfAngle : -.3-power*.35;
+  const direction = Math.cos(swing?.angle ?? angle) >= 0 ? 1 : -1;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(y));
+  ctx.rotate((swing?.angle ?? angle)+sweep*direction);
+  if (swing && swing.age > .035) {
+    const arc = [];
+    const radius = swing.range;
+    const trail = direction*(.22+progress*.30);
+    for (let i=0;i<=8;i++) {
+      const a = -trail*i/8;
+      arc.push([Math.cos(a)*radius,Math.sin(a)*radius]);
+    }
+    ctx.globalAlpha = Math.max(0,1-swing.age/GLAIVE_SWING_TIME)*.75;
+    polygon([...arc,...arc.slice().reverse().map(([x,y])=>[x*.72,y*.72])],'#f78c51');
+    ctx.globalAlpha = 1;
+  }
+  const reach = swing ? Math.min(swing.range,42+swing.power*9+swing.shieldBonus*4) : 39;
+  pixel(-8,-1,reach-4,3,'#423243');
+  pixel(-6,-1,reach-6,1,'#ae7d5b');
+  pixel(3,-2,4,4,'#905856');
+  polygon([[reach-16,0],[reach-12,-6],[reach-4,-7],[reach,-4],[reach-3,3],[reach-9,5],[reach-14,3]],'#bf694f');
+  polygon([[reach-12,-4],[reach-4,-6],[reach,-4],[reach-4,0],[reach-7,-1],[reach-12,1]],power > .6 || swing ? '#ffd39a' : '#d89a75');
+  ctx.restore();
+}
+
+function drawMinecaster(length,power) {
+  polygon([[-4,-2],[3,-2],[8,-6],[16,-6],[length-2,-5],[length,-2],[length,4],[length-5,5],[11,4],[8,7],[3,7],[4,2],[-4,2]],'#232337');
+  pixel(7,-4,length-9,7,'#58665e');
+  pixel(11,-7,5,8,'#394858');
+  pixel(9,-6,3,6,'#c8ab72');
+  pixel(15,-3,6,4,'#38484e');
+  pixel(16,-2,Math.max(1,Math.ceil(power*5)),2,'#c6e78a');
+  pixel(length-4,-5,3,9,'#819386');
+}
+
+function drawSunbeamCutter(length,power) {
+  polygon([[-5,-4],[2,-4],[6,-7],[15,-7],[19,-4],[length-2,-4],[length,-2],[length,2],[length-2,4],[15,4],[10,7],[5,7],[5,3],[-5,2]],'#2a2738');
+  pixel(4,-5,12,9,'#526578');
+  pixel(8,-5,5,8,'#d69d68');
+  pixel(14,-3,length-15,6,'#677382');
+  pixel(length-9,-5,2,2,'#d3a967');
+  pixel(length-9,3,2,2,'#d3a967');
+  pixel(length-6,-3,4,6,'#c58b61');
+  pixel(length-2,-2,2,4,beamTrace ? '#fff5ae' : '#a57258');
+  pixel(9,-2,2,Math.max(1,Math.ceil(power*4)),hero.beamLocked ? '#f78354' : '#ffe7a3');
+}
+
+function drawDeployedMines(view) {
+  for (const mine of mines) {
+    const flight = clamp((.44-mine.arm)/.24,0,1);
+    const x = mine.fromX+(mine.x-mine.fromX)*flight-view;
+    const floor = GROUND-mine.y-1;
+    const y = mine.fromY+(floor-mine.fromY)*flight-Math.sin(flight*Math.PI)*20;
+    if (x < -24 || x > W+24) continue;
+    polygon([[x-8,y],[x-6,y-4],[x-2,y-5],[x+4,y-5],[x+7,y-2],[x+7,y]],'#373440');
+    pixel(x-5,y-3,9,2,'#899384');
+    const pulse = mine.arm <= 0 && Math.sin(clock*10+x*.14) > -.2;
+    pixel(x-1,y-5,3,2,pulse ? '#ffe08a' : '#9c604c');
+    if (pulse) {
+      ctx.globalAlpha = .22;
+      pixel(x-11,y,22,1,'#e0a25d');
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawBeam(x) {
+  if (!beamTrace) return;
+  ctx.save();
+  ctx.translate(Math.round(x),Math.round(beamTrace.y));
+  ctx.rotate(beamTrace.angle);
+  const tip = rifleLength('player');
+  const end = beamTrace.distance;
+  const start = Math.min(tip,end);
+  const width = 2.5+(Math.sin(clock*45)+1)*.65+hero.spread*.65;
+  polygon([[start,-width],[end,-1],[end+3,0],[end,1],[start,width]],'#e78b55');
+  pixel(start,-1,Math.max(2,end-start),2,'#fff3aa');
+  pixel(end-2,-2,4,4,'#fff8d7');
+  ctx.restore();
+}
+
+function drawMoonring(power,charged) {
+  polygon([[-8,1],[-6,-5],[-2,-9],[4,-10],[9,-7],[10,-3],[8,1],[3,5],[-2,6],[-5,4],[-2,2],[2,2],[5,-1],[5,-4],[2,-5],[-2,-3],[-4,1]],'#6d8b9e');
+  polygon([[-7,0],[-5,-5],[-2,-8],[4,-9],[8,-7],[9,-4],[6,-6],[3,-7],[0,-6],[-3,-3],[-4,1]],charged ? '#f6ddfc' : '#c5e1df');
+  pixel(-3,2,4,2,power > .45 ? '#f4c5b1' : '#6ba6a8');
+  pixel(4,-5,2,2,'#f7e5df');
+}
+
+function drawGraveline(length,power) {
+  polygon([[-5,-3],[4,-3],[8,-6],[16,-6],[20,-3],[length-3,-4],[length,-3],
+    [length,-1],[19,-1],[19,1],[length,1],[length,3],[length-4,4],[14,4],[10,8],[5,8],[5,2],[-5,2]],'#29253a');
+  pixel(3,-3,13,6,'#516573');
+  pixel(9,-6,6,2,'#c5aa83');
+  pixel(19,-3,length-19,2,'#a79bad');
+  pixel(20,2,length-20,2,'#736c8a');
+  pixel(11,-2,6,3,'#314858');
+  pixel(11,-2,Math.max(1,Math.ceil(6*power)),2,'#c4abf3');
+  pixel(length-2,-3,2,2,'#e3bdfa');
+  pixel(length-2,2,2,2,'#ae96d7');
+}
+
+function drawWardbell(power) {
+  pixel(-2,1,9,3,'#564253');
+  pixel(2,2,5,2,'#aa8268');
+  polygon([[5,3],[6,-4],[9,-7],[14,-8],[17,-5],[18,1],[21,3],[21,6],[4,6],[3,4]],'#4a384b');
+  polygon([[6,3],[8,-4],[11,-6],[14,-6],[16,-3],[17,2],[19,4],[5,4]],'#b58a69');
+  polygon([[8,1],[10,-4],[13,-5],[14,-4],[13,1],[12,3],[8,3]],'#e6bc80');
+  pixel(5,4,14,2,'#d5a277');
+  pixel(11,6,3,2,'#dfbe8b');
+  pixel(12,-2,2,4,power > .5 ? '#e2f8dc' : '#8dc5ad');
+}
+
+function drawMoonrings(view) {
+  for (const ring of moonrings) {
+    const x = ring.x-view;
+    if (x < -25 || x > W+25) continue;
+    ctx.save();
+    ctx.translate(Math.round(x),Math.round(ring.y));
+    ctx.globalAlpha = .42;
+    polygon([[-ring.dx*24,-ring.dy*24],[-ring.dy*5,ring.dx*5],
+      [ring.dx*4,ring.dy*4],[ring.dy*5,-ring.dx*5]],ring.returning && ring.silver ? '#d8b0ed' : '#729da5');
+    ctx.globalAlpha = 1;
+    ctx.rotate(ring.age*(ring.returning ? -22 : 22));
+    drawMoonring(ring.returning ? .75 : .2,ring.silver);
+    ctx.restore();
+  }
+}
+
+function drawTether(view) {
+  if (!tether) return;
+  const x = hero.x-view;
+  const y = weaponY();
+  const endX = (tether.target?.x ?? tether.x)-view;
+  const endY = tether.target ? enemyWeaponY(tether.target) : tether.y;
+  const line = Math.hypot(endX-x,endY-y);
+  ctx.save();
+  ctx.globalAlpha = tether.target ? .92 : Math.min(1,tether.time*9);
+  const start = Math.min(1,24/Math.max(1,line));
+  for (let i=0;i<Math.ceil(line/3);i++) {
+    const t = start+(1-start)*i/Math.max(1,Math.ceil(line/3)-1);
+    const wave = Math.sin(t*19+clock*31)*Math.sin(t*Math.PI)*3;
+    const color = (i+Math.floor(clock*22))%6 < 2 ? '#edddff' : '#9e79cf';
+    pixel(x+(endX-x)*t,y+(endY-y)*t+wave,3,1,color);
+  }
+  pixel(endX-3,endY-2,6,4,tether.target ? '#ddc1fc' : '#b884d8');
+  pixel(endX-1,endY-1,2,2,'#f3dfff');
+  ctx.restore();
+}
+
+function drawWards(view) {
+  for (const ward of wards) {
+    if (ward.age <= 0) continue;
+    const x = ward.x-view;
+    if (x < -ward.max || x > W+ward.max) continue;
+    const fade = 1-ward.age/.34;
+    ctx.save();
+    ctx.translate(Math.round(x),Math.round(ward.y));
+    ctx.lineWidth = ward.echo ? 1 : 2;
+    ctx.beginPath();
+    for (let i=0;i<=32;i++) {
+      const a = i*Math.PI/16;
+      const px = Math.round(Math.cos(a)*ward.radius);
+      const py = Math.round(Math.sin(a)*ward.radius);
+      if (i === 0) ctx.moveTo(px,py);
+      else ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = fade*.18;
+    ctx.fillStyle = '#8bbcaf';
+    ctx.fill();
+    ctx.globalAlpha = .2+fade*.7;
+    ctx.strokeStyle = ward.echo ? '#ccaadc' : '#adcfc2';
+    ctx.stroke();
+    for (let i=0;i<10;i++) {
+      const a = i*Math.PI/5+ward.age*.75;
+      pixel(Math.cos(a)*(ward.radius-3),Math.sin(a)*(ward.radius-3),2,1,ward.echo ? '#ddd3ed' : '#fbdfac');
+    }
+    ctx.restore();
+  }
+}
+
+function render() {
+  const jitter = !touchLayout.matches && shake > 0 ? Math.round(Math.sin(clock*173)*shake*12) : 0;
+  const view = Math.round(camera+jitter);
+  scenery(view);
+  drawPlatforms(view);
+  drawTunnel(view);
+  drawAdventure(view);
+  for (const x of drops) drawPotion(x-view,GROUND-11+Math.sin(clock*7+x)*2);
+  drawDeployedMines(view);
+  drawWards(view);
+  for (const enemy of mobs) {
+    if (enemy.emerge > .38) continue;
+    if (enemy.emerge > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0,0,W,GROUND);
+      ctx.clip();
+      ctx.translate(0,Math.ceil(enemy.emerge/.38*42));
+    }
+    drawEnemy(enemy,enemy.x-view);
+    if (enemy.emerge > 0) ctx.restore();
+  }
+
+  const x = hero.x-view;
+  const y = GROUND-hero.y;
+  const power = chargeLevel();
+  silhouette(x,GROUND);
+  drawRanger(x,y);
+  if (hero.weapon === 'glaive') drawEmberGlaive(x,weaponY(),hero.aim,power);
+  else drawRifle(x,weaponY(),hero.aim,hero.facing,'player',1,Math.max(power,hero.muzzle > 0 ? hero.lastPower : 0),hero.muzzle);
+  drawBeam(x);
+  drawTether(view);
+  drawMoonrings(view);
+  if (mode === 'title') {
+    drawOrcBody({...enemyTypes.orc,type:'orc',x:W-77,size:.73,facing:-1,grounded:true},W-77,GROUND,0);
+    drawRifle(W-77,GROUND-10,Math.PI,-1,'enemy',.62,.3,0);
+  }
+  for (const bolt of bolts) drawBolt(bolt,view);
+  drawArcs(view);
+  drawGuard(x,weaponY());
+  drawColdAir(view);
+  for (const spark of sparks) pixel(spark.x-view,spark.y,2,2,spark.color);
+}
+
+reset();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.035,Math.max(0,(now-last)/1000));
+  last = now;
+  if (mode === 'playing') update(dt);
+  else if (mode === 'title') clock += dt;
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+</script>
+</body>
+</html>
