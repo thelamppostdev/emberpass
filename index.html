@@ -11,6 +11,10 @@ body { margin:0; min-height:100svh; display:grid; place-items:center; background
 main { width:min(1680px,98vw,max(540px,calc((100svh - 4.65rem) * 1.92))); padding:.45rem 0; }
 header,.controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.65rem 1rem; }
 header { margin-bottom:.45rem; }
+.header-title { display:flex; align-items:center; gap:.75rem; }
+.repo-link { color:#c8bdce; font:600 .75rem system-ui,sans-serif; text-underline-offset:.22em; }
+.repo-link:hover,.repo-link:focus-visible { color:var(--gold); }
+.repo-link:focus-visible { outline:1px solid var(--gold); outline-offset:4px; }
 .brand { color:var(--gold); font:700 1.12rem Georgia,serif; letter-spacing:.23em; }
 button { border:1px solid #77614d; color:#f6d7a5; background:#2e232a; font:700 .95rem system-ui,sans-serif; padding:.57rem .8rem; cursor:pointer; }
 button:hover,button:focus-visible { border-color:var(--gold); background:#503629; }
@@ -24,7 +28,10 @@ canvas.playing { cursor:crosshair; }
 @media (any-pointer:coarse) {
   body { min-height:100dvh; }
   main { width:min(100%,max(0px,calc((100dvh - 3.6rem) * 1.92))); padding:0; }
-  header, .controls { display:none; }
+  .controls, #sound { display:none; }
+  header { margin:.1rem 0 .2rem; }
+  header .brand { font-size:.8rem; }
+  .repo-link { display:inline-flex; align-items:center; min-height:24px; }
   canvas.playing ~ .touch-ui { display:block; }
   .touch-ui { position:absolute; inset:0; pointer-events:none; }
   .touch-ui button, #moveStick {
@@ -85,7 +92,13 @@ kbd { color:#fae1b9; border:1px solid var(--line); background:#231d2d; padding:.
 </head>
 <body>
 <main>
-<header><div class="brand">EMBERPASS</div><button id="sound" type="button" aria-pressed="false">Sound off</button></header>
+<header>
+  <div class="header-title">
+    <div class="brand">EMBERPASS</div>
+    <a class="repo-link" href="https://github.com/thelamppostdev/emberpass" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+  <button id="sound" type="button" aria-pressed="false">Sound off</button>
+</header>
 <div class="frame">
 <canvas id="game" width="576" height="300" aria-label="Emberpass side-scrolling game"></canvas>
 <div class="hud" id="hud" hidden>
